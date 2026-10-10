@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Shield } from "lucide-react";
+import { Plus, SlidersHorizontal } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { Logo } from "@/components/brand";
 import { BottomNav, TopNav } from "@/components/app-nav";
@@ -27,6 +27,12 @@ async function Gate({ children }: { children: React.ReactNode }) {
   const me = await requireMember();
   return (
     <>
+      <a
+        href="#main"
+        className="sr-only z-40 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to content
+      </a>
       <header className="no-print sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4">
           <Logo />
@@ -37,7 +43,7 @@ async function Gate({ children }: { children: React.ReactNode }) {
             </Link>
             {me.is_admin && (
               <Link href="/admin" className="btn-ghost px-2.5 md:hidden" aria-label="Admin">
-                <Shield size={18} aria-hidden="true" />
+                <SlidersHorizontal size={18} aria-hidden="true" />
               </Link>
             )}
             <Link href="/account" aria-label="Your account" className="md:hidden">
@@ -46,7 +52,7 @@ async function Gate({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pt-5 pb-28 md:pb-12">{children}</main>
+      <main id="main" className="mx-auto max-w-5xl px-4 pt-5 pb-28 md:pb-12">{children}</main>
       <BottomNav />
     </>
   );

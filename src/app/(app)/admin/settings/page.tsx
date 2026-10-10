@@ -7,7 +7,7 @@ export default async function SettingsPage() {
   const [settings, people] = await Promise.all([getSettings(), listPeople()]);
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
       <SettingsForm s={settings} people={people.map((p) => ({ id: p.id, name: p.full_name }))} />
     </div>
   );

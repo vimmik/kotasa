@@ -21,7 +21,7 @@ export default async function OrdersPage(props: PageProps<"/admin/orders">) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Orders</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
         <p className="text-sm text-muted">Enter or fix anyone&apos;s meals, including people who don&apos;t use the app. No cutoff here.</p>
       </div>
       <DateNav base="/admin/orders" date={date} />

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Utensils } from "lucide-react";
+import { ArrowRight, CheckCircle, ForkKnife } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { getLedgerFor, getPairs, listPeople, summarize } from "@/lib/ledger";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -29,40 +29,50 @@ export default async function Home(props: PageProps<"/">) {
   const categories = Object.fromEntries((cats ?? []).map((c) => [c.id, c.category]));
 
   return (
-    <div className="space-y-6">
+    <div className="stagger space-y-6">
       {sp.settled === "1" && (
         <p className="flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-strong">
-          <CheckCircle2 size={16} aria-hidden="true" /> Payment recorded
+          <CheckCircle size={16} weight="fill" aria-hidden="true" /> Payment recorded
         </p>
       )}
 
-      <section className="card overflow-hidden p-0">
-        <div className="p-5">
-          <p className="text-sm text-muted">Hi {me.full_name.split(" ")[0]} — overall</p>
+      <section className="card relative overflow-hidden p-0">
+        {/* soft brand glow in the corner, tinted by the theme */}
+        <div
+          className="pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-brand-soft opacity-70 blur-3xl"
+          aria-hidden="true"
+        />
+        <div className="relative px-5 pt-5 pb-6">
+          <p className="text-sm text-muted">Hi {me.full_name.split(" ")[0]}</p>
           {Math.abs(b.net) < 0.01 ? (
-            <p className="mt-1 text-3xl font-extrabold tracking-tight">You&apos;re all settled</p>
+            <p className="mt-3 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">All settled</p>
           ) : (
-            <p className="mt-1 text-3xl font-extrabold tracking-tight">
-              {b.net > 0 ? "You're owed " : "You owe "}
-              <span className={b.net > 0 ? "text-brand" : "text-danger"}>{rs(Math.abs(b.net))}</span>
-            </p>
+            <>
+              <p className="mt-3 text-sm font-medium">{b.net > 0 ? "You're owed" : "You owe"}</p>
+              <p
+                className={`text-4xl font-semibold tracking-[-0.03em] tabular-nums sm:text-5xl ${b.net > 0 ? "text-brand" : "text-danger"}`}
+              >
+                {rs(Math.abs(b.net))}
+              </p>
+            </>
           )}
+          <p className="mt-1 text-xs text-muted">Net across everyone in the office</p>
         </div>
-        <div className="grid grid-cols-2 border-t border-line text-sm">
-          <div className="border-r border-line p-4">
+        <div className="relative grid grid-cols-2 border-t border-line text-sm">
+          <div className="border-r border-line px-5 py-4">
             <p className="text-xs text-muted">You owe</p>
-            <p className="font-bold text-danger">{rs(b.totalOwe)}</p>
+            <p className={`mt-0.5 font-semibold tabular-nums ${b.totalOwe > 0.004 ? "text-danger" : "text-muted"}`}>{rs(b.totalOwe)}</p>
           </div>
-          <div className="p-4">
+          <div className="px-5 py-4">
             <p className="text-xs text-muted">Owed to you</p>
-            <p className="font-bold text-brand">{rs(b.totalOwed)}</p>
+            <p className={`mt-0.5 font-semibold tabular-nums ${b.totalOwed > 0.004 ? "text-brand" : "text-muted"}`}>{rs(b.totalOwed)}</p>
           </div>
         </div>
       </section>
 
       <div className="grid gap-6 md:grid-cols-2">
         <section>
-          <h2 className="mb-2 text-sm font-bold text-muted">You owe</h2>
+          <h2 className="mb-2 text-sm font-medium text-muted">You owe</h2>
           {b.owes.length === 0 ? (
             <p className="card text-sm text-muted">Nothing — nice.</p>
           ) : (
@@ -81,7 +91,7 @@ export default async function Home(props: PageProps<"/">) {
           )}
         </section>
         <section>
-          <h2 className="mb-2 text-sm font-bold text-muted">Owes you</h2>
+          <h2 className="mb-2 text-sm font-medium text-muted">Owes you</h2>
           {b.owed.length === 0 ? (
             <p className="card text-sm text-muted">Nobody owes you right now.</p>
           ) : (
@@ -101,9 +111,9 @@ export default async function Home(props: PageProps<"/">) {
         </section>
       </div>
 
-      <Link href="/meals" className="card flex items-center gap-3 hover:bg-surface-2">
+      <Link href="/meals" className="card-link flex items-center gap-3">
         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-amber-soft text-amber-ink">
-          <Utensils size={18} aria-hidden="true" />
+          <ForkKnife size={18} weight="duotone" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">Today&apos;s meals</p>
@@ -118,7 +128,7 @@ export default async function Home(props: PageProps<"/">) {
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-muted">Recent activity</h2>
+          <h2 className="text-sm font-medium text-muted">Recent activity</h2>
           <Link href="/account#history" className="text-sm font-semibold text-brand">See all</Link>
         </div>
         {rows.length === 0 ? (

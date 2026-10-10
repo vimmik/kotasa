@@ -1,11 +1,15 @@
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import type { Person, Settings } from "@/lib/types";
 
 /** The logged-in auth user's id, or null. */
 export async function getAuthUserId(): Promise<string | null> {
+  // getClaims() checks token expiry with Date.now(); defer to request time so
+  // Cache Components doesn't flag it during prerender validation.
+  await connection();
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   return (data?.claims?.sub as string | undefined) ?? null;
@@ -37,6 +41,16 @@ export async function requireAdmin(): Promise<Person> {
   const p = await requireMember();
   if (!p.is_admin) redirect("/");
   return p;
+}
+
+/** True once the office has an admin; /setup only works before that. */
+export async function hasAdmin(): Promise<boolean> {
+  await connection();
+  const { count } = await createAdminClient()
+    .from("people")
+    .select("id", { count: "exact", head: true })
+    .eq("is_admin", true);
+  return (count ?? 0) > 0;
 }
 
 export async function getSettings(): Promise<Settings> {

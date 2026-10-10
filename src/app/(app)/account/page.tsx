@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { ClockCounterClockwise, SignOut } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { getLedgerFor, listPeople } from "@/lib/ledger";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -27,11 +27,11 @@ export default async function AccountPage() {
     : { data: [] };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="stagger mx-auto max-w-2xl space-y-5">
       <section className="card flex items-center gap-4 p-5">
         <Avatar name={me.full_name} size={56} />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-extrabold">{me.full_name}</h1>
+          <h1 className="truncate text-xl font-semibold">{me.full_name}</h1>
           <p className="truncate text-sm text-muted">
             {[displayPhone(me.phone), me.email].filter(Boolean).join(" · ") || "No contact details"}
           </p>
@@ -44,13 +44,13 @@ export default async function AccountPage() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-bold">Appearance</h2>
+        <h2 className="font-semibold">Appearance</h2>
         <ThemeToggle />
       </section>
 
       <section className="card space-y-3">
         <div>
-          <h2 className="font-bold">Phone + PIN login</h2>
+          <h2 className="font-semibold">Phone + PIN login</h2>
           <p className="text-sm text-muted">
             {me.phone
               ? `Log in with ${displayPhone(me.phone)} and a 6-digit PIN.`
@@ -62,7 +62,7 @@ export default async function AccountPage() {
 
       <section className="card space-y-3">
         <div>
-          <h2 className="font-bold">Your bill link</h2>
+          <h2 className="font-semibold">Your bill link</h2>
           <p className="text-sm text-muted">The same read-only page your weekly SMS links to. Anyone with it can see your balances.</p>
         </div>
         <CopyLink url={`${appUrl()}/b/${me.view_token}`} />
@@ -70,11 +70,11 @@ export default async function AccountPage() {
 
       <section id="history" className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-muted">History</h2>
+          <h2 className="text-sm font-medium text-muted">History</h2>
           <Link href="/settle" className="text-sm font-semibold text-brand">Record a payment</Link>
         </div>
         {rows.length === 0 ? (
-          <EmptyState title="Nothing yet" />
+          <EmptyState icon={ClockCounterClockwise} title="Nothing yet" body="Expenses, meals and payments that involve you will show up here." />
         ) : (
           <div className="card py-1">
             <ActivityList rows={rows} me={me.id} names={names} categories={Object.fromEntries((cats ?? []).map((c) => [c.id, c.category]))} />
@@ -84,7 +84,7 @@ export default async function AccountPage() {
 
       <form action={logout}>
         <button className="btn-ghost w-full text-danger">
-          <LogOut size={16} aria-hidden="true" /> Log out
+          <SignOut size={16} aria-hidden="true" /> Log out
         </button>
       </form>
     </div>

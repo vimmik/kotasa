@@ -51,10 +51,10 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
           <Avatar name={me.full_name} size={44} />
           <div>
             <p className="text-sm text-muted">Bill for</p>
-            <h1 className="text-xl font-extrabold">{me.full_name}</h1>
+            <h1 className="text-xl font-semibold">{me.full_name}</h1>
           </div>
         </div>
-        <p className="mt-4 text-3xl font-extrabold tracking-tight">
+        <p className="mt-4 text-3xl font-semibold tracking-tight">
           {b.totalOwe > 0 ? (
             <>
               You owe <span className="text-danger">{rs(b.totalOwe)}</span>
@@ -88,7 +88,7 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
       )}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-bold text-muted">Where it came from (last 45 days)</h2>
+        <h2 className="text-sm font-medium text-muted">Where it came from (last 45 days)</h2>
         {rows.length === 0 ? (
           <p className="card text-sm text-muted">No activity.</p>
         ) : (
@@ -99,7 +99,7 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
       </section>
 
       <section className="card space-y-2 bg-brand-soft">
-        <h2 className="font-bold text-brand-strong">Get more with the {BRAND.name} app</h2>
+        <h2 className="font-semibold text-brand-strong">Get more with the {BRAND.name} app</h2>
         <p className="text-sm text-ink">
           Order breakfast and lunch yourself, add and split costs like rides, record payments and see your full history.
           Ask your admin to set you up, or sign in with Google and they&apos;ll approve you.

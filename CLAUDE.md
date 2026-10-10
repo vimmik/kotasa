@@ -34,7 +34,15 @@ Product decisions Kavi made (don't change without asking):
 ## Stack
 - Next.js **16** App Router, React 19, TypeScript, Tailwind CSS v4 (CSS-first config in `globals.css`).
 - Supabase (Postgres + Auth) via `@supabase/ssr` and `@supabase/supabase-js`.
-- `lucide-react` icons, `@fontsource-variable/plus-jakarta-sans` (self-hosted font, no Google Fonts fetch).
+- `@phosphor-icons/react` icons (import from `@phosphor-icons/react/ssr`, works in server + client components),
+  `@fontsource-variable/geist` (self-hosted font, no Google Fonts fetch).
+- UI polish follows the taste-skill `redesign-existing-projects` audit: `card-link` for clickable cards,
+  `stagger` on page roots for entrance motion, global `:focus-visible` ring, squircle avatars.
+- `src/components/ambient.tsx` (in the root layout) is a fixed background layer: gradient orbs, plus the logo's
+  slices floating in the desktop gutters (xl+) with pointer parallax. Only transform/opacity animate, nothing
+  moves on phones or with reduced motion. `body` must stay transparent (only `html` has the bg) or it hides this layer.
+- Buttons are 3D (lit edge, lip, coloured shadow). `glass` + `bezel` utilities are for fixed-size surfaces only
+  (auth screens). Don't put `backdrop-filter` on scrolling lists. Login/setup use `AuthShell`.
 - Vercel hosting + Vercel Cron. SMS via Notify.lk (Sri Lanka).
 
 ## Next.js 16 gotchas (this project hit all of these)
@@ -46,6 +54,11 @@ Product decisions Kavi made (don't change without asking):
 - Typed helpers `PageProps<"/route">` / `LayoutProps<"/route">` come from `next typegen`
   (runs during build/dev). If `tsc` says `Cannot find name 'PageProps'`, run `npx next typegen` first.
 - After a mutation in a server action call `refresh()` from `next/cache` (no `use cache` is used anywhere).
+- Dev mode validates instant navigation. A layout's `<Suspense>` doesn't cover client navigations
+  between its child pages, so every segment with a layout has its own `loading.tsx`
+  (`(app)/` and `(app)/admin/`). Add one when you add a new layout.
+- `getAuthUserId()` calls `await connection()` before Supabase `getClaims()`, because `getClaims()` reads
+  `Date.now()`, which is not allowed during prerender. Keep it.
 - Read `node_modules/next/dist/docs/` before using an API you're unsure about.
 
 ## Tailwind v4 gotchas
@@ -146,16 +159,24 @@ Done:
 - v2 app built; `next build`, tsc and eslint pass. Ledger/balance SQL tested on local Postgres
   (Uber + meals + payment case nets correctly).
 - Supabase project **kotasa**, ref `itutrhdrqrbvqkysnvdd`, region ap-south-1, migration `init` applied.
+- Runs locally against Supabase. First admin (Kavi) created via `/setup`. Supabase accepts the
+  `kotasa.local` PIN email domain.
+- Every screen tested end to end in headless Edge (mobile/desktop, light/dark). Covered: guest add,
+  menu, meal order, equal split, edit, settle, budget, packing list, orders, public bill `/b/<token>`
+  and a bad token (404). Test data was removed afterwards. Not exercised: Google login, SMS send,
+  saving settings.
+
+Direction (Kavi, 2026-10-10): Kotasa becomes multi-tenant. Anyone signs up and creates groups of any
+kind, each group configures itself, one person can be in many groups, and pricing comes later. Plan:
+`docs/multi-tenant-plan.md`. Phase 1 (tenant model) comes before the office starts using the app.
+Read the plan before touching schema, auth or routes.
 
 Not done yet / next steps:
-1. Put `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`, run locally, create first admin at `/setup`,
-   and click through every screen (never tested in a real browser against Supabase).
-2. Deploy to Vercel (project not created yet), set all env vars, set `NEXT_PUBLIC_APP_URL`.
-3. Supabase Auth → URL config: Site URL + redirect `<app>/auth/callback` (and localhost).
-4. Google OAuth client → Supabase Google provider → set `NEXT_PUBLIC_GOOGLE_LOGIN=on`.
-5. Notify.lk keys; verify their current API in `src/lib/sms.ts` (`sendViaNotifyLk`) before enabling SMS.
-6. Check that Supabase accepts the `kotasa.local` email domain for PIN users; if `createUser` rejects it,
-   change `AUTH_EMAIL_DOMAIN` (e.g. a subdomain you own).
+0. Kavi reviews `docs/multi-tenant-plan.md` (open questions at the bottom), then build Phase 1.
+1. Deploy to Vercel (project not created yet), set all env vars, set `NEXT_PUBLIC_APP_URL`.
+2. Supabase Auth → URL config: Site URL + redirect `<app>/auth/callback` (and localhost).
+3. Google OAuth client → Supabase Google provider → set `NEXT_PUBLIC_GOOGLE_LOGIN=on`.
+4. Notify.lk keys; verify their current API in `src/lib/sms.ts` (`sendViaNotifyLk`) before enabling SMS.
 
 Ideas Kavi may want later (ask first): simplify debts across people, receipts/photos, groups beyond one
 office, notifications, CSV export, Sinhala UI.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChartPieSlice } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { fmtDay } from "@/lib/time";
@@ -19,17 +20,17 @@ export default async function BudgetsPage() {
   const list = (budgets ?? []) as Budget[];
 
   return (
-    <div className="space-y-5">
+    <div className="stagger space-y-5">
       <PageHeader title="Budgets" sub="Keep a trip, an event or a monthly fund under its limit." />
       {list.length === 0 ? (
-        <EmptyState title="No budgets yet" body="Create one for a team outing or the monthly tea fund, then add expenses to it." />
+        <EmptyState icon={ChartPieSlice} title="No budgets yet" body="Create one for a team outing or the monthly tea fund, then add expenses to it." />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {list.map((b) => (
-            <Link key={b.id} href={`/budgets/${b.id}`} className={`card space-y-3 hover:bg-surface-2 ${b.closed ? "opacity-60" : ""}`}>
+            <Link key={b.id} href={`/budgets/${b.id}`} className={`card-link space-y-3 ${b.closed ? "opacity-60" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate font-bold">{b.name}</p>
+                  <p className="truncate font-semibold">{b.name}</p>
                   <p className="truncate text-xs text-muted">
                     {b.starts_on || b.ends_on
                       ? `${b.starts_on ? fmtDay(b.starts_on) : "…"} – ${b.ends_on ? fmtDay(b.ends_on) : "…"}`

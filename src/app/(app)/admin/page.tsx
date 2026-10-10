@@ -24,7 +24,7 @@ export default async function PackingList(props: PageProps<"/admin">) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold tracking-tight">Packing list · {fmtDay(date)}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Packing list · {fmtDay(date)}</h1>
         <PrintButton />
       </div>
       <DateNav base="/admin" date={date} />
@@ -37,7 +37,7 @@ export default async function PackingList(props: PageProps<"/admin">) {
           return (
             <section key={meal} className="card">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-lg font-extrabold">{MEAL_LABEL[meal]}</h2>
+                <h2 className="text-lg font-semibold">{MEAL_LABEL[meal]}</h2>
                 <span className="text-sm text-muted">{packets} packet{packets === 1 ? "" : "s"}</span>
               </div>
               {mo.length === 0 ? (
@@ -64,7 +64,7 @@ export default async function PackingList(props: PageProps<"/admin">) {
                         <tr key={o.id}>
                           <td className="font-semibold">{names.get(o.person_id) ?? "?"}</td>
                           <td>{o.item_name}</td>
-                          <td className="text-right font-bold">{o.qty}</td>
+                          <td className="text-right font-semibold">{o.qty}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef } from "react";
-import { Lock } from "lucide-react";
+import { Lock } from "@phosphor-icons/react/ssr";
 import { saveMyOrder } from "@/app/actions/meals";
 import { MEAL_LABEL, rs, type Meal, type MenuItem, type Order } from "@/lib/types";
 
@@ -30,7 +30,7 @@ export function MealPicker({
       <input type="hidden" name="date" value={date} />
       <input type="hidden" name="meal" value={meal} />
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold">{MEAL_LABEL[meal]}</h3>
+        <h3 className="text-sm font-semibold">{MEAL_LABEL[meal]}</h3>
         <span className="flex items-center gap-1 text-xs text-muted">
           {pending ? "Saving…" : locked ? (<><Lock size={12} aria-hidden="true" /> Closed</>) : `Order by ${cutoff.slice(0, 5)}`}
         </span>

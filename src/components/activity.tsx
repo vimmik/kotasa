@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, MessageSquare } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChatText } from "@phosphor-icons/react/ssr";
 import { CategoryIcon, Money } from "@/components/bits";
 import { fmtDay } from "@/lib/time";
 import type { LedgerRow } from "@/lib/types";
@@ -27,7 +27,7 @@ function Icon({ row, me }: { row: LedgerRow; me: string }) {
   if (row.source === "sms")
     return (
       <span className="inline-flex size-10 items-center justify-center rounded-xl bg-surface-2 text-muted">
-        <MessageSquare size={18} aria-hidden="true" />
+        <ChatText size={18} aria-hidden="true" />
       </span>
     );
   if (row.source === "settlement") {

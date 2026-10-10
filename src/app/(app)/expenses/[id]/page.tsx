@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { listPeople } from "@/lib/ledger";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -58,7 +58,7 @@ export default async function ExpensePage(props: PageProps<"/expenses/[id]">) {
         <div className="flex items-start gap-3">
           <CategoryIcon category={expense.category} />
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-extrabold tracking-tight">{expense.title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{expense.title}</h1>
             <p className="text-sm text-muted">
               {fmtDay(expense.expense_date)} · {CATEGORIES.find((c) => c.id === expense.category)?.label ?? "Other"}
               {budgetName && (
@@ -69,7 +69,7 @@ export default async function ExpensePage(props: PageProps<"/expenses/[id]">) {
               )}
             </p>
           </div>
-          <p className="text-2xl font-extrabold tabular-nums">{rs(expense.amount)}</p>
+          <p className="text-2xl font-semibold tabular-nums">{rs(expense.amount)}</p>
         </div>
         <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">
           <b>{expense.paid_by === me.id ? "You" : names.get(expense.paid_by)}</b> paid ·{" "}
@@ -84,7 +84,7 @@ export default async function ExpensePage(props: PageProps<"/expenses/[id]">) {
       </div>
 
       <section className="card">
-        <h2 className="mb-1 font-bold">Who owes what</h2>
+        <h2 className="mb-1 font-semibold">Who owes what</h2>
         <ul className="divide-y divide-line">
           {shares.map((s) => (
             <li key={s.person_id} className="flex items-center gap-3 py-2.5">
@@ -107,12 +107,12 @@ export default async function ExpensePage(props: PageProps<"/expenses/[id]">) {
         {canEdit && (
           <>
             <Link href={`/expenses/${id}?edit=1`} className="btn-ghost">
-              <Pencil size={15} aria-hidden="true" /> Edit
+              <PencilSimple size={15} aria-hidden="true" /> Edit
             </Link>
             <form action={deleteExpense}>
               <input type="hidden" name="id" value={id} />
               <button className="btn-danger">
-                <Trash2 size={15} aria-hidden="true" /> Delete
+                <Trash size={15} aria-hidden="true" /> Delete
               </button>
             </form>
           </>

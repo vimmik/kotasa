@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { listPeople } from "@/lib/ledger";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -42,7 +42,7 @@ export default async function ExpensesPage(props: PageProps<"/expenses">) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       <PageHeader
         title="Expenses"
         sub={`${rows.length} this week · ${rs(total)}`}

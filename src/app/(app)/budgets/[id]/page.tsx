@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { listPeople } from "@/lib/ledger";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -32,7 +32,7 @@ export default async function BudgetPage(props: PageProps<"/budgets/[id]">) {
   expenses.forEach((e) => byPayer.set(e.paid_by, (byPayer.get(e.paid_by) ?? 0) + Number(e.amount)));
 
   return (
-    <div className="space-y-5">
+    <div className="stagger space-y-5">
       <PageHeader
         title={budget.name}
         sub={budget.description ?? undefined}
@@ -71,7 +71,7 @@ export default async function BudgetPage(props: PageProps<"/budgets/[id]">) {
                     {fmtDay(e.expense_date)} · {names.get(e.paid_by)} paid
                   </p>
                 </div>
-                <span className="font-bold tabular-nums">{rs(e.amount)}</span>
+                <span className="font-semibold tabular-nums">{rs(e.amount)}</span>
               </Link>
             </li>
           ))}

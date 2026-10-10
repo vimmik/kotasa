@@ -5,6 +5,7 @@
    or picks System (default) and the OS is in dark mode. */
 :root {
   color-scheme: light;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --bg: #f5f7f5;
   --surface: #ffffff;
   --surface-2: #eff3f1;
@@ -23,6 +24,18 @@
   --info-soft: #e7eefb;
   --info-ink: #24508f;
   --shadow: 0 1px 2px rgb(16 32 27 / 0.04), 0 4px 16px rgb(16 32 27 / 0.04);
+  --shadow-lift: 0 2px 4px rgb(14 124 102 / 0.06), 0 12px 32px -8px rgb(16 32 27 / 0.12);
+  --edge-hi: rgb(255 255 255 / 0.9);
+  --glass: rgb(255 255 255 / 0.66);
+  --glass-line: rgb(16 32 27 / 0.08);
+  --deep-shadow: 0 30px 60px -24px rgb(16 32 27 / 0.28);
+  --orb-a: rgb(14 124 102 / 0.17);
+  --orb-b: rgb(242 163 58 / 0.15);
+  --slice: rgb(14 124 102 / 0.11);
+  --slice-line: rgb(14 124 102 / 0.22);
+  --slice-accent: rgb(242 163 58 / 0.3);
+  --dot: rgb(16 32 27 / 0.09);
+  --grain-opacity: 0.035;
 }
 
 :root[data-theme="dark"] {
@@ -45,6 +58,18 @@
   --info-soft: #172743;
   --info-ink: #9dbcf0;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.5);
+  --edge-hi: rgb(255 255 255 / 0.07);
+  --glass: rgb(18 27 24 / 0.62);
+  --glass-line: rgb(255 255 255 / 0.08);
+  --deep-shadow: 0 30px 60px -24px rgb(0 0 0 / 0.7);
+  --orb-a: rgb(53 195 159 / 0.13);
+  --orb-b: rgb(245 180 90 / 0.08);
+  --slice: rgb(53 195 159 / 0.07);
+  --slice-line: rgb(53 195 159 / 0.18);
+  --slice-accent: rgb(245 180 90 / 0.22);
+  --dot: rgb(230 239 235 / 0.06);
+  --grain-opacity: 0.05;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,6 +93,18 @@
     --info-soft: #172743;
     --info-ink: #9dbcf0;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.5);
+    --edge-hi: rgb(255 255 255 / 0.07);
+    --glass: rgb(18 27 24 / 0.62);
+    --glass-line: rgb(255 255 255 / 0.08);
+    --deep-shadow: 0 30px 60px -24px rgb(0 0 0 / 0.7);
+    --orb-a: rgb(53 195 159 / 0.13);
+    --orb-b: rgb(245 180 90 / 0.08);
+    --slice: rgb(53 195 159 / 0.07);
+    --slice-line: rgb(53 195 159 / 0.18);
+    --slice-accent: rgb(245 180 90 / 0.22);
+    --dot: rgb(230 239 235 / 0.06);
+    --grain-opacity: 0.05;
   }
 }
 
@@ -89,47 +126,153 @@
   --color-danger-soft: var(--danger-soft);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);
-  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
-html,
-body {
+html {
   background: var(--bg);
+  color: var(--ink);
+}
+/* body stays transparent so the fixed ambient layer (behind content) shows through */
+body {
   color: var(--ink);
 }
 body {
   font-feature-settings: "tnum" 1;
   -webkit-tap-highlight-color: transparent;
 }
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+p {
+  text-wrap: pretty;
+}
+
+/* Keyboard focus: one consistent ring everywhere, never on mouse click. */
+:where(a, button, [role="radio"], summary, input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Page content settles in with a short stagger. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
 
 @utility card {
-  @apply rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)];
+  @apply rounded-2xl border border-line bg-surface p-4;
+  box-shadow:
+    inset 0 1px 0 var(--edge-hi),
+    var(--shadow);
+}
+@utility card-link {
+  @apply card transition duration-200 ease-(--ease-out-soft) hover:-translate-y-px active:translate-y-0;
+  &:hover {
+    box-shadow:
+      inset 0 1px 0 var(--edge-hi),
+      var(--shadow-lift);
+  }
+}
+/* Frosted glass. Only for fixed-size surfaces (auth screens), never long scrolling lists. */
+@utility glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 var(--edge-hi),
+    0 0 0 1px var(--glass-line),
+    var(--deep-shadow);
+}
+/* Outer tray of a double-bezel: the glass plate sits inside it. */
+@utility bezel {
+  @apply rounded-[2rem] p-1.5;
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+  box-shadow: 0 0 0 1px var(--glass-line);
+}
+@utility stagger {
+  @media (prefers-reduced-motion: no-preference) {
+    & > * {
+      animation: rise 420ms var(--ease-out-soft) both;
+    }
+    & > *:nth-child(2) {
+      animation-delay: 50ms;
+    }
+    & > *:nth-child(3) {
+      animation-delay: 100ms;
+    }
+    & > *:nth-child(4) {
+      animation-delay: 150ms;
+    }
+    & > *:nth-child(n + 5) {
+      animation-delay: 200ms;
+    }
+  }
 }
 @utility btn {
-  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition duration-200 ease-(--ease-out-soft) select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
 }
+/* 3D buttons: lit top edge, shaded bottom lip, coloured drop shadow; lift on hover, sink on press. */
 @utility btn-primary {
-  @apply btn bg-brand text-brand-ink hover:bg-brand-strong;
+  @apply btn text-brand-ink hover:-translate-y-px active:translate-y-px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand) 84%, white) 0%,
+    var(--brand) 52%,
+    color-mix(in oklab, var(--brand) 82%, black) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 -2px 0 rgb(0 0 0 / 0.14),
+    0 8px 18px -8px color-mix(in oklab, var(--brand) 75%, transparent),
+    0 1px 2px color-mix(in oklab, var(--brand) 40%, transparent);
+  &:hover {
+    filter: brightness(1.05);
+  }
+  &:active {
+    box-shadow:
+      inset 0 2px 4px rgb(0 0 0 / 0.2),
+      0 1px 2px color-mix(in oklab, var(--brand) 40%, transparent);
+  }
 }
 @utility btn-ghost {
-  @apply btn border border-line bg-surface text-ink hover:bg-surface-2;
+  @apply btn border border-line bg-surface text-ink hover:-translate-y-px hover:bg-surface-2 active:translate-y-px;
+  box-shadow:
+    inset 0 1px 0 var(--edge-hi),
+    inset 0 -1px 0 color-mix(in oklab, var(--ink) 6%, transparent),
+    0 1px 2px color-mix(in oklab, var(--ink) 8%, transparent);
+  &:active {
+    box-shadow: inset 0 1px 3px color-mix(in oklab, var(--ink) 12%, transparent);
+  }
 }
 @utility btn-danger {
   @apply btn bg-danger-soft text-danger hover:brightness-95;
 }
 @utility input {
-  @apply min-h-10 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/25 sm:text-sm;
+  @apply min-h-10 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none placeholder:text-muted/70 transition duration-200 focus:border-brand focus:ring-4 focus:ring-brand/15 sm:text-sm;
 }
 @utility label {
-  @apply mb-1 block text-xs font-semibold text-muted;
+  @apply mb-1.5 block text-xs font-medium text-muted;
 }
 @utility pill {
-  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium;
 }
 @utility tbl {
   @apply w-full text-sm;
   & th {
-    @apply border-b border-line px-3 py-2 text-left text-xs font-semibold text-muted;
+    @apply border-b border-line px-3 py-2 text-left text-xs font-medium text-muted;
   }
   & td {
     @apply border-b border-line px-3 py-2.5 align-middle;
@@ -139,8 +282,123 @@ body {
   }
 }
 
+/* ---------- Ambient background ----------
+   Fixed layer behind everything. Orbs are radial gradients (no blur filter), slices are the
+   logo's quarter-plates drifting in the desktop gutters. Only transform/opacity animate. */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-orb {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 9999px;
+  will-change: transform;
+}
+.ambient-orb-a {
+  top: -38vmax;
+  left: -26vmax;
+  background: radial-gradient(closest-side, var(--orb-a), transparent);
+  animation: orb-drift-a 38s var(--ease-out-soft) infinite alternate;
+}
+.ambient-orb-b {
+  right: -30vmax;
+  bottom: -40vmax;
+  background: radial-gradient(closest-side, var(--orb-b), transparent);
+  animation: orb-drift-b 46s var(--ease-out-soft) infinite alternate;
+}
+.ambient-orb-c {
+  top: 30%;
+  right: -42vmax;
+  width: 55vmax;
+  height: 55vmax;
+  background: radial-gradient(closest-side, var(--orb-a), transparent);
+  opacity: 0.7;
+  animation: orb-drift-c 52s var(--ease-out-soft) infinite alternate;
+}
+.ambient-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  /* dots live in the side gutters only */
+  mask-image: linear-gradient(to right, black 0%, transparent 22%, transparent 78%, black 100%);
+}
+.ambient-slice {
+  position: absolute;
+  translate: calc(var(--px, 0) * var(--depth, 1) * 1px) calc(var(--py, 0) * var(--depth, 1) * 1px);
+  transition: translate 900ms var(--ease-out-soft);
+}
+.ambient-slice > svg {
+  display: block;
+  animation: slice-float var(--dur, 18s) var(--ease-out-soft) var(--delay, 0s) infinite alternate;
+}
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.float-card {
+  animation: card-float var(--dur, 7s) var(--ease-out-soft) var(--delay, 0s) infinite alternate;
+}
+
+@keyframes orb-drift-a {
+  to {
+    transform: translate3d(8vmax, 6vmax, 0) scale(1.08);
+  }
+}
+@keyframes orb-drift-b {
+  to {
+    transform: translate3d(-10vmax, -7vmax, 0) scale(1.12);
+  }
+}
+@keyframes orb-drift-c {
+  to {
+    transform: translate3d(-6vmax, 9vmax, 0) scale(0.92);
+  }
+}
+@keyframes slice-float {
+  from {
+    transform: translate3d(0, -14px, 0) rotate(calc(var(--rot, 0deg) - 7deg));
+  }
+  to {
+    transform: translate3d(0, 14px, 0) rotate(calc(var(--rot, 0deg) + 7deg));
+  }
+}
+@keyframes card-float {
+  from {
+    translate: 0 -6px;
+  }
+  to {
+    translate: 0 6px;
+  }
+}
+
+/* Phones: keep the glow, drop the motion. */
+@media (max-width: 767px) {
+  .ambient-orb {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb,
+  .ambient-slice > svg,
+  .float-card {
+    animation: none !important;
+  }
+  .ambient-slice {
+    transition: none;
+  }
+}
+
 @media print {
-  .no-print {
+  .no-print,
+  .ambient {
     display: none !important;
   }
   html,

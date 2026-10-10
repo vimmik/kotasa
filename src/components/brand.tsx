@@ -20,7 +20,7 @@ export function Logo({ href = "/", size = 30 }: { href?: string; size?: number }
   return (
     <Link href={href} className="flex items-center gap-2" aria-label={`${BRAND.name} home`}>
       <LogoMark size={size} />
-      <span className="text-[1.15rem] font-extrabold tracking-tight">{BRAND.name.toLowerCase()}</span>
+      <span className="text-[1.15rem] font-bold tracking-tight">{BRAND.name.toLowerCase()}</span>
     </Link>
   );
 }

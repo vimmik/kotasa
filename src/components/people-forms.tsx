@@ -35,7 +35,7 @@ export function AddPersonForm() {
   return (
     <form action={action} className="card space-y-3" key={state?.ok ? state.message : "f"}>
       <div>
-        <h2 className="font-bold">Add a person</h2>
+        <h2 className="font-semibold">Add a person</h2>
         <p className="text-xs text-muted">
           Mobile only = they get the weekly SMS and a bill link. Add a Gmail so they can sign in with Google, or give a PIN.
         </p>

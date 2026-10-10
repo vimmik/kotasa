@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, PieChart, Plus, Receipt, Shield, User, Utensils } from "lucide-react";
+import { House, ChartPieSlice, Plus, Receipt, SlidersHorizontal, User, ForkKnife } from "@phosphor-icons/react/ssr";
 
 const ITEMS = [
-  { href: "/", label: "Home", Icon: Home },
+  { href: "/", label: "Home", Icon: House },
   { href: "/expenses", label: "Expenses", Icon: Receipt },
-  { href: "/meals", label: "Meals", Icon: Utensils },
-  { href: "/budgets", label: "Budgets", Icon: PieChart },
+  { href: "/meals", label: "Meals", Icon: ForkKnife },
+  { href: "/budgets", label: "Budgets", Icon: ChartPieSlice },
   { href: "/account", label: "Account", Icon: User },
 ];
 
@@ -19,7 +19,7 @@ function isActive(path: string, href: string) {
 /** Desktop: inline links in the header. */
 export function TopNav({ isAdmin }: { isAdmin: boolean }) {
   const path = usePathname();
-  const items = isAdmin ? [...ITEMS, { href: "/admin", label: "Admin", Icon: Shield }] : ITEMS;
+  const items = isAdmin ? [...ITEMS, { href: "/admin", label: "Admin", Icon: SlidersHorizontal }] : ITEMS;
   return (
     <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
       {items.map(({ href, label }) => (
@@ -27,7 +27,7 @@ export function TopNav({ isAdmin }: { isAdmin: boolean }) {
           key={href}
           href={href}
           aria-current={isActive(path, href) ? "page" : undefined}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${isActive(path, href) ? "bg-brand-soft text-brand-strong" : "text-muted hover:text-ink"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${isActive(path, href) ? "bg-brand-soft text-brand-strong" : "text-muted hover:text-ink"}`}
         >
           {label}
         </Link>
@@ -41,17 +41,24 @@ export function BottomNav() {
   const path = usePathname();
   const left = ITEMS.slice(0, 2);
   const right = ITEMS.slice(2, 4);
-  const tab = ({ href, label, Icon }: (typeof ITEMS)[number]) => (
-    <Link
-      key={href}
-      href={href}
-      aria-current={isActive(path, href) ? "page" : undefined}
-      className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${isActive(path, href) ? "text-brand" : "text-muted"}`}
-    >
-      <Icon size={20} aria-hidden="true" />
-      {label}
-    </Link>
-  );
+  const tab = ({ href, label, Icon }: (typeof ITEMS)[number]) => {
+    const active = isActive(path, href);
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={active ? "page" : undefined}
+        className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors duration-200 ${active ? "text-brand" : "text-muted active:text-ink"}`}
+      >
+        <span
+          className={`absolute top-0 h-0.5 w-6 rounded-b-full bg-brand transition-opacity duration-200 ${active ? "opacity-100" : "opacity-0"}`}
+          aria-hidden="true"
+        />
+        <Icon size={22} weight={active ? "fill" : "regular"} aria-hidden="true" />
+        {label}
+      </Link>
+    );
+  };
   return (
     <nav
       aria-label="Main"
@@ -63,9 +70,9 @@ export function BottomNav() {
           <Link
             href="/expenses/new"
             aria-label="Add expense"
-            className="-mt-5 flex size-13 items-center justify-center rounded-2xl bg-brand text-brand-ink shadow-lg ring-4 ring-bg"
+            className="-mt-5 flex size-13 items-center justify-center rounded-2xl bg-brand text-brand-ink shadow-[var(--shadow-lift)] ring-4 ring-bg transition duration-200 active:scale-95"
           >
-            <Plus size={26} aria-hidden="true" />
+            <Plus size={26} weight="bold" aria-hidden="true" />
           </Link>
         </div>
         {right.map(tab)}

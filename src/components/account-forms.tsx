@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "@phosphor-icons/react/ssr";
 import { setMyPin } from "@/app/actions/auth";
 import { FormMessage, SubmitButton } from "@/components/ui";
 

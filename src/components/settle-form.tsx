@@ -63,7 +63,7 @@ export function SettleForm({ me, people, owes, owed, initial, today }: Props) {
             id="amount"
             name="amount"
             inputMode="decimal"
-            className="input text-lg font-bold"
+            className="input text-lg font-semibold"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
             required

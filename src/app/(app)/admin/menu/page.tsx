@@ -20,7 +20,7 @@ export default async function MenuPage(props: PageProps<"/admin/menu">) {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-extrabold tracking-tight">Menu</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Menu</h1>
       <DateNav base="/admin/menu" date={date} />
       <CopyMenuForm to={date} suggestFrom={prevDay} />
       <div className="grid gap-4 md:grid-cols-2">
@@ -28,7 +28,7 @@ export default async function MenuPage(props: PageProps<"/admin/menu">) {
           const list = ((items ?? []) as MenuItem[]).filter((i) => i.meal === meal);
           return (
             <section key={meal} className="card">
-              <h2 className="text-lg font-extrabold">{MEAL_LABEL[meal]}</h2>
+              <h2 className="text-lg font-semibold">{MEAL_LABEL[meal]}</h2>
               {list.length === 0 ? (
                 <p className="mt-2 text-sm text-muted">No items yet — add what&apos;s available.</p>
               ) : (

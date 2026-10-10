@@ -30,7 +30,7 @@ export default async function MealsPage(props: PageProps<"/meals">) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       <PageHeader
         title="Meals"
         sub={
@@ -44,7 +44,7 @@ export default async function MealsPage(props: PageProps<"/meals">) {
         {days.map((d) => (
           <section key={d} className={`card ${d === today ? "ring-2 ring-brand/40" : ""}`}>
             <div className="mb-3 flex items-center gap-2">
-              <h2 className="font-bold">{fmtDay(d)}</h2>
+              <h2 className="font-semibold">{fmtDay(d)}</h2>
               {d === today && <span className="pill bg-brand-soft text-brand-strong">Today</span>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">

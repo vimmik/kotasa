@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Send } from "lucide-react";
+import { PaperPlaneTilt } from "@phosphor-icons/react/ssr";
 import { sendSmsNow } from "@/app/actions/admin";
 import { FormMessage, SubmitButton } from "@/components/ui";
 
@@ -23,7 +23,7 @@ export function SmsSendForm({ week, smsEnabled }: { week: string; smsEnabled: bo
             if (!confirm(`Send this week's SMS to ${n} ${n === 1 ? "person" : "people"} now?`)) e.preventDefault();
           }}
         >
-          <Send size={16} aria-hidden="true" /> Send to ticked
+          <PaperPlaneTilt size={16} aria-hidden="true" /> Send to ticked
         </SubmitButton>
       </div>
       {!smsEnabled && (

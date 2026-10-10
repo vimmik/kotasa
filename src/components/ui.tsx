@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { Printer } from "lucide-react";
+import { ArrowRight, Printer } from "@phosphor-icons/react/ssr";
 import type { ActionState } from "@/lib/types";
 
 export function SubmitButton({
@@ -15,6 +15,18 @@ export function SubmitButton({
     <button type="submit" disabled={pending || rest.disabled} className={className} {...rest}>
       {pending ? pendingText : children}
     </button>
+  );
+}
+
+/** Big pill submit with the arrow nested in its own circle; the arrow nudges forward on hover. */
+export function PillSubmit({ children, pendingText }: { children: React.ReactNode; pendingText: string }) {
+  return (
+    <SubmitButton className="btn-primary group min-h-12 w-full justify-between rounded-full py-1.5 pr-1.5 pl-6 text-[15px]" pendingText={pendingText}>
+      <span>{children}</span>
+      <span className="flex size-9 items-center justify-center rounded-full bg-white/20 transition-transform duration-300 ease-(--ease-out-soft) group-hover:translate-x-0.5 group-hover:-translate-y-px group-hover:scale-105">
+        <ArrowRight size={16} weight="bold" aria-hidden="true" />
+      </span>
+    </SubmitButton>
   );
 }
 

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { Clock } from "lucide-react";
+import { Clock } from "@phosphor-icons/react/ssr";
 import { getCurrentPerson } from "@/lib/auth";
 import { cancelPending, logout } from "@/app/actions/auth";
 import { LogoMark } from "@/components/brand";
@@ -27,7 +27,7 @@ async function Pending() {
         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-amber-soft text-amber-ink">
           <Clock size={20} aria-hidden="true" />
         </span>
-        <h1 className="text-xl font-extrabold">Waiting for approval</h1>
+        <h1 className="text-xl font-semibold">Waiting for approval</h1>
         <p className="text-sm text-muted">
           Hi {me.full_name.split(" ")[0]}, your request to join is with the admin. Once they approve it and add your
           mobile number, you&apos;ll see your balances here. Come back in a bit.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, UserPlus } from "lucide-react";
+import { Check, UserPlus } from "@phosphor-icons/react/ssr";
 import { addGuest, saveExpense } from "@/app/actions/expenses";
 import { FormMessage, SubmitButton } from "@/components/ui";
 import { CATEGORY_ICON } from "@/components/bits";
@@ -70,7 +70,7 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
                 id="amount"
                 name="amount"
                 inputMode="decimal"
-                className="input text-lg font-bold"
+                className="input text-lg font-semibold"
                 placeholder="1200"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
@@ -127,7 +127,7 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
 
         <section className="card space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-bold">Split between {ids.length ? `${ids.length} ${ids.length === 1 ? "person" : "people"}` : ""}</h2>
+            <h2 className="font-semibold">Split between {ids.length ? `${ids.length} ${ids.length === 1 ? "person" : "people"}` : ""}</h2>
             <div className="inline-flex rounded-xl border border-line bg-surface-2 p-0.5 text-xs font-semibold">
               {(["equal", "custom"] as const).map((t) => (
                 <button
@@ -232,7 +232,7 @@ export function AddGuest({ onAdded }: { onAdded?: (id: string) => void }) {
   return (
     <form action={action} className="card space-y-3" key={state?.personId}>
       <div>
-        <h3 className="font-bold">Add a person</h3>
+        <h3 className="font-semibold">Add a person</h3>
         <p className="text-xs text-muted">They don&apos;t need the app. Their weekly bill goes by SMS with a link to see the details.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

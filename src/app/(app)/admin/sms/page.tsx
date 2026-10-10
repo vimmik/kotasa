@@ -24,7 +24,7 @@ export default async function SmsPage(props: PageProps<"/admin/sms">) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Weekly SMS</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Weekly SMS</h1>
           <p className="text-sm text-muted">
             Auto-sends every {WEEKDAYS[settings.billing_weekday - 1]} from {String(settings.sms_send_hour).padStart(2, "0")}:00 to
             everyone who owes money. Sent early? They&apos;re skipped. SMS fee {rs(settings.sms_fee)}, once a week.
@@ -62,13 +62,13 @@ export default async function SmsPage(props: PageProps<"/admin/sms">) {
               <p className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs break-words">{r.message}</p>
               <p className="text-[11px] text-muted">{r.message.length} chars · {Math.ceil(r.message.length / 160)} SMS</p>
             </div>
-            <span className="font-bold text-danger tabular-nums">{rs(r.totalOwe + r.fee)}</span>
+            <span className="font-semibold text-danger tabular-nums">{rs(r.totalOwe + r.fee)}</span>
           </li>
         ))}
       </ul>
 
       <section className="card">
-        <h2 className="font-bold">Log</h2>
+        <h2 className="font-semibold">Log</h2>
         {(logs ?? []).length === 0 ? (
           <p className="mt-1 text-sm text-muted">No SMS this week yet.</p>
         ) : (

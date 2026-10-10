@@ -11,7 +11,7 @@ export function SettingsForm({ s, people }: { s: Settings; people: { id: string;
   return (
     <form action={action} className="space-y-4">
       <section className="card grid gap-4 sm:grid-cols-2">
-        <h2 className="font-bold sm:col-span-2">Office</h2>
+        <h2 className="font-semibold sm:col-span-2">Office</h2>
         <div>
           <label className="label" htmlFor="office_name">Office name</label>
           <input id="office_name" name="office_name" defaultValue={s.office_name} className="input" />
@@ -29,7 +29,7 @@ export function SettingsForm({ s, people }: { s: Settings; people: { id: string;
       </section>
 
       <section className="card grid gap-4 sm:grid-cols-2">
-        <h2 className="font-bold sm:col-span-2">Meal orders close at</h2>
+        <h2 className="font-semibold sm:col-span-2">Meal orders close at</h2>
         <div>
           <label className="label" htmlFor="breakfast_cutoff">Breakfast</label>
           <input id="breakfast_cutoff" name="breakfast_cutoff" type="time" defaultValue={s.breakfast_cutoff.slice(0, 5)} className="input" />
@@ -41,7 +41,7 @@ export function SettingsForm({ s, people }: { s: Settings; people: { id: string;
       </section>
 
       <section className="card grid gap-4 sm:grid-cols-3">
-        <h2 className="font-bold sm:col-span-3">Weekly SMS</h2>
+        <h2 className="font-semibold sm:col-span-3">Weekly SMS</h2>
         <div>
           <label className="label" htmlFor="billing_weekday">Send on (last office day)</label>
           <select id="billing_weekday" name="billing_weekday" defaultValue={s.billing_weekday} className="input">
