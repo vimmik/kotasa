@@ -1,6 +1,7 @@
 {
   "name": "kotasa",
   "version": "0.1.0",
+  "author": "Vimmik (https://github.com/vimmik)",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,10 +10,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
-    "lucide-react": "^1.54.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

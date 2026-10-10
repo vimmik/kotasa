@@ -3,29 +3,38 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { getCurrentPerson, requireMember } from "@/lib/auth";
+import { getCurrentProfile, hasAnyProfile, requireMemberFromForm, requireProfile } from "@/lib/auth";
+import { acceptInvite, createGroup, findInvite } from "@/lib/accounts";
 import { upsertPinLogin } from "@/lib/logins";
+import { orgDb } from "@/lib/org-db";
 import { isValidPin, normalizePhone } from "@/lib/phone";
-import type { ActionState } from "@/lib/types";
+import { ORG_KINDS, type ActionState, type OrgKind } from "@/lib/types";
+
+const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+
+/** Only same-site paths, so a crafted ?next= can't bounce people to another site. */
+function safeNext(v: unknown) {
+  const s = String(v ?? "");
+  return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/";
+}
 
 export async function loginWithPin(_: ActionState, form: FormData): Promise<ActionState> {
-  const phone = normalizePhone(String(form.get("phone") ?? ""));
-  const pin = String(form.get("pin") ?? "");
+  const phone = normalizePhone(str(form, "phone"));
+  const pin = str(form, "pin");
   if (!phone) return { error: "Enter a valid mobile number (07XXXXXXXX)" };
   if (!isValidPin(pin)) return { error: "Your PIN is 6 digits" };
 
   const admin = createAdminClient();
-  const { data: person } = await admin.from("people").select("id, status").eq("phone", phone).maybeSingle();
-  if (!person) return { error: "This number isn't registered yet. Ask your admin to add you." };
-  if (person.status === "inactive") return { error: "Your account is inactive. Contact your admin." };
+  const { data: profile } = await admin.from("profiles").select("id").eq("phone", phone).maybeSingle();
+  if (!profile) return { error: "This number has no Kotasa login yet. Ask your group admin to add you." };
 
   const { data: login } = await admin
-    .from("person_logins")
+    .from("profile_logins")
     .select("auth_user_id")
-    .eq("person_id", person.id)
+    .eq("profile_id", profile.id)
     .eq("method", "pin")
     .maybeSingle();
-  if (!login) return { error: "PIN login isn't set up for you. Sign in with Google or ask your admin for a PIN." };
+  if (!login) return { error: "PIN login isn't set up for you. Sign in with Google, or ask your admin for a PIN." };
 
   const { data: u } = await admin.auth.admin.getUserById(login.auth_user_id);
   if (!u.user?.email) return { error: "Login problem. Ask your admin to reset your PIN." };
@@ -33,7 +42,7 @@ export async function loginWithPin(_: ActionState, form: FormData): Promise<Acti
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email: u.user.email, password: pin });
   if (error) return { error: "Wrong PIN. Try again." };
-  redirect("/");
+  redirect(safeNext(form.get("next")));
 }
 
 async function origin() {
@@ -44,11 +53,15 @@ async function origin() {
   return `${proto}://${host}`;
 }
 
-export async function loginWithGoogle() {
+export async function loginWithGoogle(form: FormData) {
+  const next = safeNext(form.get("next"));
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${await origin()}/auth/callback`, queryParams: { prompt: "select_account" } },
+    options: {
+      redirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(next)}`,
+      queryParams: { prompt: "select_account" },
+    },
   });
   if (error || !data.url) redirect("/login?error=google");
   redirect(data.url);
@@ -60,62 +73,91 @@ export async function logout() {
   redirect("/login");
 }
 
-/** First-run: create the first admin with phone + PIN. Only works while nobody exists yet. */
-export async function setupFirstAdmin(_: ActionState, form: FormData): Promise<ActionState> {
-  const admin = createAdminClient();
-  const { count } = await admin.from("people").select("id", { count: "exact", head: true }).eq("is_admin", true);
-  if ((count ?? 0) > 0) return { error: "An admin already exists. Log in instead." };
-
-  const name = String(form.get("full_name") ?? "").trim();
-  const phone = normalizePhone(String(form.get("phone") ?? ""));
-  const pin = String(form.get("pin") ?? "");
+/** First run only: the very first account, with phone + PIN, and its first group. */
+export async function setupFirstAccount(_: ActionState, form: FormData): Promise<ActionState> {
+  if (await hasAnyProfile()) return { error: "Kotasa is already set up here. Log in instead." };
+  const name = str(form, "full_name");
+  const phone = normalizePhone(str(form, "phone"));
+  const pin = str(form, "pin");
+  const groupName = str(form, "group_name") || "Office";
   if (!name) return { error: "Enter your name" };
   if (!phone) return { error: "Enter a valid mobile number" };
   if (!isValidPin(pin)) return { error: "PIN must be 6 digits" };
 
-  const { data: person, error } = await admin
-    .from("people")
-    .insert({ full_name: name, phone, is_admin: true })
-    .select("id")
-    .single();
-  if (error || !person) return { error: error?.message ?? "Couldn't create admin" };
-
-  const err = await upsertPinLogin(person.id, phone, pin);
+  const admin = createAdminClient();
+  const { data: profile, error } = await admin.from("profiles").insert({ full_name: name, phone }).select("*").single();
+  if (error || !profile) return { error: error?.message ?? "Couldn't create your account" };
+  const err = await upsertPinLogin(profile.id, phone, pin);
   if (err) {
-    await admin.from("people").delete().eq("id", person.id);
+    await admin.from("profiles").delete().eq("id", profile.id);
     return { error: err };
   }
-  await admin.from("settings").update({ collector_id: person.id }).eq("id", 1);
+  const org = await createGroup(profile, groupName, "office");
 
-  const { data: login } = await admin.from("person_logins").select("auth_user_id").eq("person_id", person.id).single();
+  const { data: login } = await admin.from("profile_logins").select("auth_user_id").eq("profile_id", profile.id).single();
   const { data: u } = await admin.auth.admin.getUserById(login!.auth_user_id);
   const supabase = await createClient();
   await supabase.auth.signInWithPassword({ email: u.user!.email!, password: pin });
-  redirect("/admin/people");
+  redirect(`/g/${org.slug}/admin/people`);
 }
 
-/** Member sets/changes their own PIN (needs a phone number on file). */
+/** Set or change your own PIN. Adding a mobile number here is allowed if no one else uses it. */
 export async function setMyPin(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireMember();
-  const pin = String(form.get("pin") ?? "");
-  const confirm = String(form.get("confirm") ?? "");
+  const me = await requireProfile();
+  const pin = str(form, "pin");
+  const confirm = str(form, "confirm");
   if (!isValidPin(pin)) return { error: "PIN must be 6 digits" };
   if (pin !== confirm) return { error: "PINs don't match" };
-  if (!me.phone) return { error: "Ask your admin to add your mobile number first" };
-  const err = await upsertPinLogin(me.id, me.phone, pin);
+  let phone = me.phone;
+  if (!phone) {
+    phone = normalizePhone(str(form, "phone"));
+    if (!phone) return { error: "Enter your mobile number (07XXXXXXXX)" };
+    const admin = createAdminClient();
+    const { data: taken } = await admin.from("profiles").select("id").eq("phone", phone).maybeSingle();
+    if (taken) return { error: "That number already has a Kotasa login" };
+    await admin.from("profiles").update({ phone }).eq("id", me.id);
+  }
+  const err = await upsertPinLogin(me.id, phone, pin);
   return err ? { error: err } : { ok: true, message: "PIN saved. You can now log in with your number." };
 }
 
-/** Used by /pending to let someone withdraw their request. */
-export async function cancelPending() {
-  const me = await getCurrentPerson();
-  if (me?.status === "pending") {
-    const admin = createAdminClient();
-    const { data } = await admin.from("person_logins").select("auth_user_id").eq("person_id", me.id);
-    await admin.from("people").delete().eq("id", me.id);
-    for (const l of data ?? []) await admin.auth.admin.deleteUser(l.auth_user_id);
+export async function createGroupAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireProfile();
+  const name = str(form, "name");
+  const kind = str(form, "kind") as OrgKind;
+  if (!name || name.length > 60) return { error: "Give the group a name (up to 60 characters)" };
+  if (!ORG_KINDS.some((k) => k.id === kind)) return { error: "Pick what kind of group it is" };
+  const { count } = await createAdminClient()
+    .from("orgs")
+    .select("id", { count: "exact", head: true })
+    .eq("created_by", me.id);
+  if ((count ?? 0) >= 20) return { error: "You've created 20 groups, which is the limit for now" };
+  const org = await createGroup(me, name, kind);
+  redirect(`/g/${org.slug}`);
+}
+
+export async function joinGroup(form: FormData) {
+  const me = await getCurrentProfile();
+  const code = str(form, "code");
+  if (!me) redirect(`/login?next=${encodeURIComponent(`/join/${code}`)}`);
+  const info = await findInvite(code);
+  if (!info) redirect(`/join/${code}`);
+  const member = await acceptInvite(me, info);
+  redirect(member.status === "active" ? `/g/${info.org.slug}` : "/groups");
+}
+
+/** Leave a group. History stays; the member becomes inactive and admins still see the balance. */
+export async function leaveGroup(_: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await requireMemberFromForm(form);
+  const db = orgDb(ctx.org.id);
+  if (ctx.member.role_key === "owner") {
+    const { count } = await db
+      .select("members", "id", { count: "exact", head: true })
+      .eq("role_key", "owner")
+      .eq("status", "active");
+    if ((count ?? 0) <= 1) return { error: "You're the only owner. Make someone else owner first, in Admin › People." };
   }
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
+  await db.update("members", { status: "inactive" }).eq("id", ctx.member.id);
+  await createAdminClient().from("profiles").update({ last_org_id: null }).eq("id", ctx.profile.id).eq("last_org_id", ctx.org.id);
+  redirect("/groups");
 }

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 
@@ -20,7 +21,26 @@ export function Logo({ href = "/", size = 30 }: { href?: string; size?: number }
   return (
     <Link href={href} className="flex items-center gap-2" aria-label={`${BRAND.name} home`}>
       <LogoMark size={size} />
-      <span className="text-[1.15rem] font-extrabold tracking-tight">{BRAND.name.toLowerCase()}</span>
+      <span className="text-[1.15rem] font-bold tracking-tight">{BRAND.name.toLowerCase()}</span>
     </Link>
+  );
+}
+
+/** "Developed by Vimmik" credit line. */
+export function DevelopedBy({ className = "" }: { className?: string }) {
+  return (
+    <p className={`flex items-center justify-center gap-1.5 text-xs text-muted ${className}`}>
+      Developed by
+      <a
+        href={BRAND.developer.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 font-semibold text-ink hover:text-brand hover:underline"
+      >
+        {/* The logo has its own light round background, so it reads on dark themes too. */}
+        <Image src={BRAND.developer.logo} alt="" width={20} height={20} className="rounded-full" />
+        {BRAND.developer.name}
+      </a>
+    </p>
   );
 }

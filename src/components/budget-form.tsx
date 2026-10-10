@@ -2,14 +2,16 @@
 
 import { useActionState } from "react";
 import { saveBudget } from "@/app/actions/money";
-import { FormMessage, SubmitButton } from "@/components/ui";
+import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
+import { OrgField } from "@/components/org-field";
 import type { Budget } from "@/lib/types";
 
 export function BudgetForm({ budget }: { budget?: Budget }) {
   const [state, action] = useActionState(saveBudget, null);
   return (
-    <form action={action} className="card space-y-3">
-      <h2 className="font-bold">{budget ? "Edit budget" : "New budget"}</h2>
+    <ActionForm action={action} className="card space-y-3">
+      <OrgField />
+      <h2 className="font-semibold">{budget ? "Edit budget" : "New budget"}</h2>
       {budget && <input type="hidden" name="id" value={budget.id} />}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -40,6 +42,6 @@ export function BudgetForm({ budget }: { budget?: Budget }) {
       )}
       <FormMessage state={state} />
       <SubmitButton>{budget ? "Save budget" : "Create budget"}</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

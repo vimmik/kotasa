@@ -1,28 +1,31 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, UserPlus } from "lucide-react";
+import { Check, UserPlus } from "@phosphor-icons/react/ssr";
 import { addGuest, saveExpense } from "@/app/actions/expenses";
-import { FormMessage, SubmitButton } from "@/components/ui";
-import { CATEGORY_ICON } from "@/components/bits";
+import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
+import { ICONS } from "@/components/bits";
+import { OrgField } from "@/components/org-field";
 import { splitEqually } from "@/lib/split";
 import { BRAND } from "@/lib/brand";
-import { CATEGORIES, rs, round2, type Budget, type Expense, type PersonWithLogin } from "@/lib/types";
+import { rs, round2, type Budget, type Category, type Expense, type MemberWithLogin } from "@/lib/types";
 
 type Props = {
   me: string;
-  people: PersonWithLogin[];
+  people: MemberWithLogin[];
   budgets: Pick<Budget, "id" | "name">[];
+  categories: Category[];
   today: string;
+  canAddGuests: boolean;
   expense?: Expense;
   shares?: Record<string, number>;
   defaultBudget?: string;
 };
 
-export function ExpenseForm({ me, people, budgets, today, expense, shares, defaultBudget }: Props) {
+export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, defaultBudget }: Props) {
   const [state, action] = useActionState(saveExpense, null);
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
-  const [category, setCategory] = useState(expense?.category ?? "food");
+  const [category, setCategory] = useState(expense?.category ?? categories[0]?.key ?? "other");
   const [paidBy, setPaidBy] = useState(expense?.paid_by ?? me);
   const [splitType, setSplitType] = useState<"equal" | "custom">(expense?.split_type ?? "equal");
   const [selected, setSelected] = useState<Set<string>>(new Set(shares ? Object.keys(shares) : [me]));
@@ -50,7 +53,8 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
 
   return (
     <div className="space-y-4">
-      <form action={action} className="space-y-4">
+      <ActionForm action={action} className="space-y-4">
+        <OrgField />
         {expense && <input type="hidden" name="id" value={expense.id} />}
         <input type="hidden" name="category" value={category} />
         <input type="hidden" name="split_type" value={splitType} />
@@ -70,7 +74,7 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
                 id="amount"
                 name="amount"
                 inputMode="decimal"
-                className="input text-lg font-bold"
+                className="input text-lg font-semibold"
                 placeholder="1200"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
@@ -85,14 +89,14 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
           <div>
             <span className="label">Category</span>
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const Icon = CATEGORY_ICON[c.id];
-                const on = category === c.id;
+              {categories.map((c) => {
+                const Icon = ICONS[c.icon] ?? ICONS.receipt;
+                const on = category === c.key;
                 return (
                   <button
-                    key={c.id}
+                    key={c.key}
                     type="button"
-                    onClick={() => setCategory(c.id)}
+                    onClick={() => setCategory(c.key)}
                     aria-pressed={on}
                     className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-semibold ${on ? "border-brand bg-brand-soft text-brand-strong" : "border-line text-muted hover:text-ink"}`}
                   >
@@ -113,7 +117,7 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
                 ))}
               </select>
             </div>
-            <div>
+            <div className={budgets.length ? "" : "hidden"}>
               <label className="label" htmlFor="budget_id">Budget (optional)</label>
               <select id="budget_id" name="budget_id" className="input" defaultValue={expense?.budget_id ?? defaultBudget ?? ""}>
                 <option value="">No budget</option>
@@ -127,7 +131,7 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
 
         <section className="card space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-bold">Split between {ids.length ? `${ids.length} ${ids.length === 1 ? "person" : "people"}` : ""}</h2>
+            <h2 className="font-semibold">Split between {ids.length ? `${ids.length} ${ids.length === 1 ? "person" : "people"}` : ""}</h2>
             <div className="inline-flex rounded-xl border border-line bg-surface-2 p-0.5 text-xs font-semibold">
               {(["equal", "custom"] as const).map((t) => (
                 <button
@@ -208,9 +212,9 @@ export function ExpenseForm({ me, people, budgets, today, expense, shares, defau
             {expense ? "Save changes" : `Add expense${total ? ` · ${rs(total)}` : ""}`}
           </SubmitButton>
         </div>
-      </form>
+      </ActionForm>
 
-      <AddGuest onAdded={(id) => setSelected((s) => new Set(s).add(id))} />
+      {canAddGuests && <AddGuest onAdded={(id) => setSelected((s) => new Set(s).add(id))} />}
     </div>
   );
 }
@@ -230,9 +234,10 @@ export function AddGuest({ onAdded }: { onAdded?: (id: string) => void }) {
       </button>
     );
   return (
-    <form action={action} className="card space-y-3" key={state?.personId}>
+    <ActionForm action={action} className="card space-y-3" key={state?.personId}>
+      <OrgField />
       <div>
-        <h3 className="font-bold">Add a person</h3>
+        <h3 className="font-semibold">Add a person</h3>
         <p className="text-xs text-muted">They don&apos;t need the app. Their weekly bill goes by SMS with a link to see the details.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -244,6 +249,6 @@ export function AddGuest({ onAdded }: { onAdded?: (id: string) => void }) {
         <SubmitButton pendingText="Adding…">Add person</SubmitButton>
         <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>Close</button>
       </div>
-    </form>
+    </ActionForm>
   );
 }

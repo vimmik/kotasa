@@ -3,18 +3,24 @@
 import { useActionState, useState } from "react";
 import { saveDayOrders } from "@/app/actions/meals";
 import { FormMessage, SubmitButton } from "@/components/ui";
-import { MEAL_LABEL, MEALS, rs, type MenuItem, type Order, type PersonWithLogin } from "@/lib/types";
+import { OrgField } from "@/components/org-field";
+import { rs, type MealSlot, type MemberWithLogin, type MenuItem, type Order } from "@/lib/types";
 
 export function DayOrdersForm({
   date,
   people,
+  slots,
   menu,
   orders,
+  pooled = {},
 }: {
   date: string;
-  people: PersonWithLogin[];
+  people: MemberWithLogin[];
+  slots: MealSlot[];
   menu: MenuItem[];
   orders: Order[];
+  /** shared-bill meals that day -> who has joined */
+  pooled?: Record<string, string[]>;
 }) {
   const [state, action] = useActionState(saveDayOrders, null);
   const [filter, setFilter] = useState("");
@@ -22,7 +28,11 @@ export function DayOrdersForm({
 
   return (
     <form action={action} className="space-y-3">
+      <OrgField />
       <input type="hidden" name="date" value={date} />
+      {Object.keys(pooled).map((k) => (
+        <input key={k} type="hidden" name="pooled_slots" value={k} />
+      ))}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <input type="search" placeholder="Search name" value={filter} onChange={(e) => setFilter(e.target.value)} className="input max-w-xs" />
         <SubmitButton>Save all changes</SubmitButton>
@@ -32,19 +42,36 @@ export function DayOrdersForm({
         {people.map((p) => (
           <li
             key={p.id}
-            className={`grid gap-2 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.4fr)] md:items-center ${p.full_name.toLowerCase().includes(filter.toLowerCase()) ? "" : "hidden"}`}
+            style={{ "--slots": slots.length } as React.CSSProperties}
+            className={`grid gap-2 py-3 md:grid-cols-[minmax(0,1fr)_repeat(var(--slots),minmax(0,1.4fr))] md:items-center ${p.full_name.toLowerCase().includes(filter.toLowerCase()) ? "" : "hidden"}`}
           >
             <div className="font-semibold">
               {p.full_name}
               {!p.registered && <span className="ml-2 pill bg-surface-2 text-muted">SMS only</span>}
             </div>
-            {MEALS.map((meal) => {
+            {slots.map(({ key: meal, label }) => {
+              if (pooled[meal])
+                return (
+                  <label key={meal} className="flex min-h-9 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name={`join_${meal}`}
+                      value={p.id}
+                      defaultChecked={pooled[meal].includes(p.id)}
+                      className="size-4 accent-[var(--brand)]"
+                      aria-label={`${p.full_name} eating ${label}`}
+                    />
+                    <span>
+                      {label} <span className="text-xs text-muted">(shared bill)</span>
+                    </span>
+                  </label>
+                );
               const o = find(p.id, meal);
               return (
                 <div key={meal} className="flex items-center gap-1.5">
-                  <span className="w-16 shrink-0 text-xs text-muted md:hidden">{MEAL_LABEL[meal]}</span>
-                  <select name={`item_${meal}_${p.id}`} defaultValue={o?.menu_item_id ?? ""} className="input min-w-0 py-1.5" aria-label={`${p.full_name} ${meal}`}>
-                    <option value="">— no {meal}</option>
+                  <span className="w-16 shrink-0 text-xs text-muted md:hidden">{label}</span>
+                  <select name={`item_${meal}_${p.id}`} defaultValue={o?.menu_item_id ?? ""} className="input min-w-0 py-1.5" aria-label={`${p.full_name} ${label}`}>
+                    <option value="">— no {label.toLowerCase()}</option>
                     {menu
                       .filter((i) => i.meal === meal)
                       .map((i) => (

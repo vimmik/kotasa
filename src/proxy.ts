@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 const PUBLIC = ["/login", "/setup", "/auth", "/b/"];
+// Logged-out visitors to these are sent to /login?next=<path> and come back after signing in.
+const RETURN_TO = ["/join/", "/g/"];
 
 // Refreshes the Supabase session cookie and sends logged-out users to /login.
 export async function proxy(request: NextRequest) {
@@ -33,6 +35,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
+    if (RETURN_TO.some((p) => path.startsWith(p))) url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
   return response;

@@ -2,14 +2,14 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { createAdminClient } from "@/lib/supabase/server";
-import { getLedgerFor, getPairs, listPeople, summarize } from "@/lib/ledger";
+import { memberByViewToken } from "@/lib/accounts";
+import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { BRAND } from "@/lib/brand";
 import { addDays, todayColombo } from "@/lib/time";
-import { rs, type Person } from "@/lib/types";
+import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
 import { Avatar, Loading, Money } from "@/components/bits";
-import { Logo } from "@/components/brand";
+import { DevelopedBy, Logo } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = { title: "Your bill", robots: { index: false, follow: false } };
@@ -32,14 +32,15 @@ export default function BillPage(props: PageProps<"/b/[token]">) {
 async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
   const { token } = await params;
   if (!/^[0-9a-f]{24}$/.test(token)) notFound();
-  const { data } = await createAdminClient().from("people").select("*").eq("view_token", token).maybeSingle();
-  if (!data || data.status === "inactive") notFound();
-  const me = data as Person;
+  const found = await memberByViewToken(token);
+  if (!found || found.member.status !== "active") notFound();
+  const { member: me, org } = found;
 
+  // Everything below is scoped to the member's own group.
   const [people, pairs, rows] = await Promise.all([
-    listPeople({ includeInactive: true }),
-    getPairs(),
-    getLedgerFor(me.id, { from: addDays(todayColombo(), -45), limit: 150 }),
+    listMembers(org.id, { includeInactive: true }),
+    getPairs(org.id),
+    getLedgerFor(org.id, me.id, { from: addDays(todayColombo(), -45), limit: 150 }),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const b = summarize(me.id, pairs);
@@ -50,11 +51,11 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
         <div className="flex items-center gap-3">
           <Avatar name={me.full_name} size={44} />
           <div>
-            <p className="text-sm text-muted">Bill for</p>
-            <h1 className="text-xl font-extrabold">{me.full_name}</h1>
+            <p className="text-sm text-muted">{org.name} · bill for</p>
+            <h1 className="text-xl font-semibold">{me.full_name}</h1>
           </div>
         </div>
-        <p className="mt-4 text-3xl font-extrabold tracking-tight">
+        <p className="mt-4 text-3xl font-semibold tracking-tight">
           {b.totalOwe > 0 ? (
             <>
               You owe <span className="text-danger">{rs(b.totalOwe)}</span>
@@ -88,24 +89,26 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
       )}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-bold text-muted">Where it came from (last 45 days)</h2>
+        <h2 className="text-sm font-medium text-muted">Where it came from (last 45 days)</h2>
         {rows.length === 0 ? (
           <p className="card text-sm text-muted">No activity.</p>
         ) : (
           <div className="card py-1">
-            <ActivityList rows={rows} me={me.id} names={names} linkExpenses={false} />
+            <ActivityList rows={rows} me={me.id} names={names} />
           </div>
         )}
       </section>
 
       <section className="card space-y-2 bg-brand-soft">
-        <h2 className="font-bold text-brand-strong">Get more with the {BRAND.name} app</h2>
+        <h2 className="font-semibold text-brand-strong">Get more with the {BRAND.name} app</h2>
         <p className="text-sm text-ink">
-          Order breakfast and lunch yourself, add and split costs like rides, record payments and see your full history.
-          Ask your admin to set you up, or sign in with Google and they&apos;ll approve you.
+          Add and split costs yourself, record payments, order meals if your group uses them, and see your full
+          history. Ask your group admin for an invite link.
         </p>
         <Link href="/login" className="btn-primary">Open {BRAND.name}</Link>
       </section>
+
+      <DevelopedBy />
     </div>
   );
 }

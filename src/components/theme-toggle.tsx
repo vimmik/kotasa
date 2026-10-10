@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Desktop, Moon, Sun } from "@phosphor-icons/react/ssr";
 
 type Theme = "system" | "light" | "dark";
 const OPTIONS: { id: Theme; label: string; Icon: typeof Sun }[] = [
-  { id: "system", label: "System", Icon: Monitor },
+  { id: "system", label: "System", Icon: Desktop },
   { id: "light", label: "Light", Icon: Sun },
   { id: "dark", label: "Dark", Icon: Moon },
 ];

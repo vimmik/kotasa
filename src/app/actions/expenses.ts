@@ -2,43 +2,54 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/server";
-import { requireMember } from "@/lib/auth";
+import { can, requireMemberFromForm, type OrgContext } from "@/lib/auth";
+import { orgDb } from "@/lib/org-db";
 import { normalizePhone } from "@/lib/phone";
 import { isValidDate } from "@/lib/time";
 import { splitEqually } from "@/lib/split";
-import { CATEGORIES, round2, type ActionState, type Expense, type Person } from "@/lib/types";
+import { round2, type ActionState, type Expense } from "@/lib/types";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+const UUID = /^[0-9a-f-]{36}$/;
 
-function canEdit(me: Person, e: Pick<Expense, "created_by" | "paid_by">) {
-  return me.is_admin || e.created_by === me.id || e.paid_by === me.id;
+function canEdit(ctx: OrgContext, e: Pick<Expense, "created_by" | "paid_by">) {
+  return can(ctx, "expense.edit_any") || e.created_by === ctx.member.id || e.paid_by === ctx.member.id;
 }
 
 export async function saveExpense(_: ActionState, f: FormData): Promise<ActionState> {
-  const me = await requireMember();
-  const admin = createAdminClient();
+  const ctx = await requireMemberFromForm(f);
+  if (!can(ctx, "expense.add")) return { error: "Your role can't add expenses in this group" };
+  const db = orgDb(ctx.org.id);
   const id = str(f, "id") || null;
 
   const title = str(f, "title");
   const amount = round2(Number(str(f, "amount")));
-  const category = CATEGORIES.some((c) => c.id === str(f, "category")) ? str(f, "category") : "other";
+  const category = str(f, "category");
   const date = str(f, "expense_date");
   const paidBy = str(f, "paid_by");
-  const budgetId = str(f, "budget_id") || null;
+  const budgetId = ctx.settings.budgets_enabled ? str(f, "budget_id") || null : null;
   const splitType = str(f, "split_type") === "custom" ? "custom" : "equal";
   const note = str(f, "note") || null;
-  const participants = [...new Set(f.getAll("participants").map(String).filter(Boolean))];
+  const participants = [...new Set(f.getAll("participants").map(String).filter((x) => UUID.test(x)))];
 
   if (!title) return { error: "Add a short title, like “Uber to client”" };
   if (!(amount > 0)) return { error: "Enter the amount" };
   if (!isValidDate(date)) return { error: "Pick a date" };
   if (!participants.length) return { error: "Choose who shares this expense" };
+  if (!UUID.test(paidBy)) return { error: "Pick who paid" };
 
+  // Everyone involved must be an active member of THIS group.
   const ids = [...new Set([paidBy, ...participants])];
-  const { data: found } = await admin.from("people").select("id, status").in("id", ids);
-  if ((found ?? []).length !== ids.length || found!.some((p) => p.status !== "active"))
-    return { error: "Someone in this expense isn't an active member" };
+  const { data: found } = await db.select("members", "id, status").in("id", ids);
+  if ((found ?? []).length !== ids.length || (found as { status: string }[]).some((p) => p.status !== "active"))
+    return { error: "Someone in this expense isn't an active member of this group" };
+
+  const { data: cat } = await db.select("org_categories", "key, archived").eq("key", category).maybeSingle();
+  if (!cat) return { error: "Pick a category" };
+  if (budgetId) {
+    const { data: b } = await db.select("budgets", "id").eq("id", budgetId).eq("closed", false).maybeSingle();
+    if (!b) return { error: "That budget is closed or gone" };
+  }
 
   let shares: { person_id: string; amount: number }[];
   if (splitType === "custom") {
@@ -66,55 +77,61 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
 
   let expenseId = id;
   if (id) {
-    const { data: existing } = await admin.from("expenses").select("created_by, paid_by").eq("id", id).maybeSingle();
+    if (!UUID.test(id)) return { error: "That expense no longer exists" };
+    const { data: existing } = await db.select("expenses", "created_by, paid_by, category").eq("id", id).maybeSingle();
     if (!existing) return { error: "That expense no longer exists" };
-    if (!canEdit(me, existing)) return { error: "Only the person who added or paid this, or an admin, can edit it" };
-    const { error } = await admin.from("expenses").update(row).eq("id", id);
+    const ex = existing as Pick<Expense, "created_by" | "paid_by" | "category">;
+    if (!canEdit(ctx, ex)) return { error: "Only the person who added or paid this, or an admin, can edit it" };
+    if ((cat as { archived: boolean }).archived && ex.category !== category) return { error: "That category is archived" };
+    const { error } = await db.update("expenses", row).eq("id", id);
     if (error) return { error: error.message };
-    await admin.from("expense_shares").delete().eq("expense_id", id);
+    await db.delete("expense_shares").eq("expense_id", id);
   } else {
-    const { data, error } = await admin
-      .from("expenses")
-      .insert({ ...row, created_by: me.id })
+    if ((cat as { archived: boolean }).archived) return { error: "That category is archived" };
+    const { data, error } = await db
+      .insert("expenses", { ...row, created_by: ctx.member.id })
       .select("id")
       .single();
     if (error || !data) return { error: error?.message ?? "Couldn't save" };
-    expenseId = data.id;
+    expenseId = (data as { id: string }).id;
   }
 
-  const { error: sErr } = await admin
-    .from("expense_shares")
-    .insert(shares.map((s) => ({ ...s, expense_id: expenseId })));
+  const { error: sErr } = await db.insert(
+    "expense_shares",
+    shares.map((s) => ({ ...s, expense_id: expenseId })),
+  );
   if (sErr) return { error: sErr.message };
 
-  redirect(`/expenses/${expenseId}`);
+  redirect(`${ctx.base}/expenses/${expenseId}`);
 }
 
 export async function deleteExpense(f: FormData) {
-  const me = await requireMember();
+  const ctx = await requireMemberFromForm(f);
   const id = str(f, "id");
-  const admin = createAdminClient();
-  const { data: e } = await admin.from("expenses").select("created_by, paid_by").eq("id", id).maybeSingle();
-  if (e && canEdit(me, e)) await admin.from("expenses").delete().eq("id", id);
-  redirect("/expenses");
+  const db = orgDb(ctx.org.id);
+  if (UUID.test(id)) {
+    const { data: e } = await db.select("expenses", "created_by, paid_by").eq("id", id).maybeSingle();
+    if (e && canEdit(ctx, e as Pick<Expense, "created_by" | "paid_by">)) await db.delete("expenses").eq("id", id);
+  }
+  redirect(`${ctx.base}/expenses`);
 }
 
-/** Any member can add someone who doesn't use the app yet (name + mobile) so they can be billed by SMS. */
+/** Add someone who doesn't use the app yet (name + mobile) so they can share costs and get the SMS. */
 export async function addGuest(_: ActionState, f: FormData): Promise<ActionState & { personId?: string }> {
-  const me = await requireMember();
+  const ctx = await requireMemberFromForm(f);
+  if (!can(ctx, "members.invite")) return { error: "Your role can't add people to this group" };
   const name = str(f, "full_name");
   const phone = normalizePhone(str(f, "phone"));
   if (!name) return { error: "Enter their name" };
   if (!phone) return { error: "Enter a valid mobile number (07XXXXXXXX)" };
-  const admin = createAdminClient();
-  const { data: dup } = await admin.from("people").select("id, full_name").eq("phone", phone).maybeSingle();
-  if (dup) return { error: `That number already belongs to ${dup.full_name}` };
-  const { data, error } = await admin
-    .from("people")
-    .insert({ full_name: name, phone, created_by: me.id })
+  const db = orgDb(ctx.org.id);
+  const { data: dup } = await db.select("members", "id, full_name").eq("phone", phone).maybeSingle();
+  if (dup) return { error: `That number already belongs to ${(dup as { full_name: string }).full_name}` };
+  const { data, error } = await db
+    .insert("members", { full_name: name, phone, created_by: ctx.member.id })
     .select("id")
     .single();
   if (error || !data) return { error: error?.message ?? "Couldn't add" };
   refresh();
-  return { ok: true, message: `${name} added`, personId: data.id };
+  return { ok: true, message: `${name} added`, personId: (data as { id: string }).id };
 }

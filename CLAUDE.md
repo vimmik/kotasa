@@ -4,20 +4,28 @@
 
 ## Who and how
 - Owner: Kavi (Kavishka Dinajara), Associate Software Engineer in Sri Lanka. Builds this for his own office.
+- Credit: "Developed by Vimmik" (Kavi's small company, https://github.com/vimmik). Set in `BRAND.developer`
+  (lib/brand.ts, logo `public/brand/vimmik.png`, 96px), shown by `<DevelopedBy />` on auth screens, Account and the public bill; also in metadata + package.json.
 - Kavi writes in casual Sinhala-English ("Singlish"). Reply the same way, short and practical.
   Keep all UI copy, code, comments and commit messages in plain English.
 - Ask before big product decisions (money rules, who-can-do-what). Small UI and code choices: just decide.
 
 ## What the app is
-**Kotasa** (කොටස = "a share") — *Share it. Settle it.* Shared office expenses: daily breakfast/lunch
-orders, rides, cakes, trips, anything. Anyone can pay; the app tracks who owes whom; a weekly SMS tells
-each person their total with a link to a read-only bill.
+**Kotasa** (කොටස = "a share") — *Share it. Settle it.* Shared expenses for any group: an office (daily
+breakfast/lunch orders, rides, cakes), friends, a trip, a family. Anyone can pay; the app tracks who owes
+whom; a weekly SMS tells each person their total with a link to a read-only bill.
+**Multi-tenant:** anyone signs in, creates or joins groups; groups are fully isolated; one person can be
+in many groups. Design and decisions: `docs/multi-tenant-plan.md`.
 
 Product decisions Kavi made (don't change without asking):
 - **Not just meals.** Any expense ("Uber case") can be added and split. Meals are one module.
 - **Anyone pays, app tracks** person-to-person debts (Splitwise-style), not a single central kitty.
 - **Split:** equal (default) or custom amounts per person.
-- **Who adds expenses:** any registered member. Edit/delete: creator, payer, or admin.
+- **Who can do what** is per group: roles are named permission sets (`org_roles`); code checks
+  permissions from `src/lib/permissions.ts`, never role names. Defaults: owner/admin = everything,
+  member = add expenses + invite. Edit/delete an expense: creator, payer, or `expense.edit_any`.
+- **Each group configures itself:** modules (meals, budgets) on/off for any group, own categories,
+  own meal slots with cutoffs, billing day, SMS. Circles (sub-groups) and a role editor UI are phase 1b.
 - **People without the app** are added by name + mobile. They get the weekly SMS and a read-only bill
   link showing where each amount came from. Registered users get more (ordering, adding, history…).
 - **Budgets:** both plain expenses and budgets/funds with an optional limit.
@@ -27,15 +35,26 @@ Product decisions Kavi made (don't change without asking):
   Scheduled run skips people already sent that week. An SMS fee is added to each person's bill once a week,
   owed to the collector.
 - **Unpaid balances carry forward** automatically.
-- **Login:** phone + 6-digit PIN, and Google. Unknown Google accounts become *pending*; admin approves
-  (link to an existing person, or approve as new with a mobile number).
+- **Login:** phone + 6-digit PIN (for people an admin adds), and Google. New people join a group by
+  invite link (optionally needing approval) or get added by an admin. Leaving with a balance is allowed:
+  member becomes inactive, history stays.
 - **Themes:** System (default) / Light / Dark. Must be mobile responsive.
 
 ## Stack
 - Next.js **16** App Router, React 19, TypeScript, Tailwind CSS v4 (CSS-first config in `globals.css`).
 - Supabase (Postgres + Auth) via `@supabase/ssr` and `@supabase/supabase-js`.
-- `lucide-react` icons, `@fontsource-variable/plus-jakarta-sans` (self-hosted font, no Google Fonts fetch).
-- Vercel hosting + Vercel Cron. SMS via Notify.lk (Sri Lanka).
+- `@phosphor-icons/react` icons (import from `@phosphor-icons/react/ssr`, works in server + client components),
+  `@fontsource-variable/geist` (self-hosted font, no Google Fonts fetch).
+- UI polish follows the taste-skill `redesign-existing-projects` audit: `card-link` for clickable cards,
+  `stagger` on page roots for entrance motion, global `:focus-visible` ring, squircle avatars.
+- `src/components/ambient.tsx` (in the root layout) is a fixed background layer: gradient orbs, plus the logo's
+  slices floating in the desktop gutters (xl+) with pointer parallax. Only transform/opacity animate, nothing
+  moves on phones or with reduced motion. `body` must stay transparent (only `html` has the bg) or it hides this layer.
+- Buttons are 3D (lit edge, lip, coloured shadow). `glass` + `bezel` utilities are for fixed-size surfaces only
+  (auth screens). Don't put `backdrop-filter` on scrolling lists. Login/setup use `AuthShell`.
+- Vercel hosting + Vercel Cron. SMS via Text.lk (Sri Lanka, pay-as-you-go, no monthly fee; Kavi chose it
+  2026-10-10 over Notify.lk's Rs 3000 + monthly minimum). Notify.lk stays as `SMS_PROVIDER=notifylk`.
+  Admin SMS page also has a free "Send on WhatsApp" (`wa.me`) link per person: no fee, not logged.
 
 ## Next.js 16 gotchas (this project hit all of these)
 - Middleware is now **`src/proxy.ts`** exporting `proxy()`. Don't create `middleware.ts`.
@@ -46,6 +65,11 @@ Product decisions Kavi made (don't change without asking):
 - Typed helpers `PageProps<"/route">` / `LayoutProps<"/route">` come from `next typegen`
   (runs during build/dev). If `tsc` says `Cannot find name 'PageProps'`, run `npx next typegen` first.
 - After a mutation in a server action call `refresh()` from `next/cache` (no `use cache` is used anywhere).
+- Dev mode validates instant navigation. A layout's `<Suspense>` doesn't cover client navigations
+  between its child pages, so every segment with a layout has its own `loading.tsx`
+  (`g/[slug]/` and `g/[slug]/admin/`). Add one when you add a new layout.
+- `getAuthUserId()` calls `await connection()` before Supabase `getClaims()`, because `getClaims()` reads
+  `Date.now()`, which is not allowed during prerender. Keep it.
 - Read `node_modules/next/dist/docs/` before using an API you're unsure about.
 
 ## Tailwind v4 gotchas
@@ -65,65 +89,95 @@ Product decisions Kavi made (don't change without asking):
 
 ## Architecture
 ```
-src/proxy.ts                 refresh Supabase session; redirect logged-out users to /login
+src/proxy.ts                 refresh Supabase session; logged-out -> /login (with ?next= for /g/ and /join/)
                              (public: /login /setup /auth /b/)
-src/app/(app)/               everything behind login (layout does requireMember)
+src/app/page.tsx             "/" -> last used group, or /groups
+src/app/groups/              your groups, pending joins, create a group
+src/app/join/[code]/         accept an invite link
+src/app/g/[slug]/            one group (layout: requireMember(slug), group switcher, nav by modules/perms)
   page.tsx                   home: net balance, you owe / owes you, today's meals, activity
   expenses/ new/ [id]/       list (week + "involving me"/"everyone"), add, detail/edit (?edit=1)
-  meals/                     weekly meal picker
-  budgets/ [id]/             budgets with limit + progress
+  meals/                     weekly meal picker (module)
+  budgets/ [id]/             budgets with limit + progress (module)
   settle/                    record a payment (?to=ID / ?from=ID &amount=)
-  account/                   profile, theme, PIN, bill link, history
-  admin/                     packing list, menu, orders, people (+ pending approvals), sms, settings
-src/app/b/[token]/           PUBLIC read-only bill (from SMS), noindex
-src/app/auth/callback/       Google OAuth: link existing → match by email → first-ever = admin → else pending
-src/app/login, setup, pending
-src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET); ?force=1 ignores day/hour
+  account/                   profile, theme, PIN, bill link, history, leave group
+  guide/                     "How Kotasa works": idea, benefits, balance example, per-feature steps (only enabled
+                             modules), admin note, FAQ. Linked from Home and Account. Keep it in sync with features.
+  admin/                     packing, menu, orders, people (invites, approvals, roles), sms, settings;
+                             tabs shown per permission (lib/admin-links.ts); /admin -> first allowed tab
+src/app/b/[token]/           PUBLIC read-only bill for one member (from SMS), noindex
+src/app/auth/callback/       Google: linked login -> done; else profile by verified email + claim invited members
+src/app/login, setup         setup = first-run only (first account + first group)
+src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts
 src/lib/
-  auth.ts                    getCurrentPerson (react cache), requireMember, requireAdmin, getSettings
-  ledger.ts                  listPeople, getPairs (rpc pair_balances), summarize, getLedgerFor
-  logins.ts                  PIN login create/update, phone sync, delete logins
-  sms.ts                     buildWeeklyMessages, sendWeeklySms, Notify.lk sender
+  auth.ts                    getCurrentProfile, requireMember(slug) -> OrgContext, can(), requirePermission,
+                             requireMemberFromForm (hidden "org" field), requireModule, getMemberships
+  org-db.ts                  orgDb(orgId): select/insert/update/delete always scoped to one group
+  accounts.ts                createGroup, invites (find/accept), Google profile linking, cron group list
+  org-config.ts              categories, meal slots, roles, invites, slugify/keyify, expense icon map
+  permissions.ts             permission keys + labels
+  ledger.ts                  listMembers, getPairs(orgId) (rpc pair_balances), summarize, getLedgerFor
+  logins.ts                  PIN login create/update per profile; profileOwnedByOrg (who may reset a PIN)
+  sms.ts                     buildWeeklyMessages, sendWeeklySms (per group, monthly cap), Text.lk / Notify.lk senders
   split.ts                   splitEqually (cent-exact)
   time.ts                    Asia/Colombo dates as "YYYY-MM-DD" strings, weeks start Monday
   phone.ts                   normalize to 94XXXXXXXXX, displayPhone, PIN email helper
   brand.ts                   BRAND name/tagline/colors, appUrl()
   types.ts                   shared types, rs() money formatter, round2
 src/components/              UI (client components end in forms/pickers; bits.tsx = shared server bits)
-supabase/migrations/         single init migration (schema, ledger view, pair_balances, RLS)
+                             org-field.tsx = hidden "org" input every group form needs
+supabase/migrations/         init + multi_tenant (orgs, profiles/members, roles, circles, invites, composite FKs)
 scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
 ```
 
 ## Data model (Postgres, `public`)
-- `people` — everyone who can owe/be owed. `status`: active | pending | inactive. `phone` (94XXXXXXXXX,
-  unique, needed for SMS), `email` (lowercase, unique, used to match Google), `is_admin`,
-  `view_token` (24 hex, for `/b/<token>`).
-- `person_logins` — auth.users ↔ people, many-to-one. `method`: pin | google. A person with no rows is
-  an "SMS only" guest.
-- `expenses` + `expense_shares` (sum of shares = amount). `budgets` (optional `limit_amount`, dates, closed).
-- `menu_items` (per date + meal, price), `orders` (one per person/date/meal; `payee_id` = collector at order time,
-  item name/price snapshotted).
-- `settlements` (from_person paid to_person). `sms_logs` (fee only on first *sent* SMS per person per week).
-- `settings` (single row id=1): office_name, collector_id, cutoffs, billing_weekday (1=Mon), sms_send_hour,
-  sms_enabled, sms_fee, sms_template (must contain `{total}` and `{link}`).
+- `profiles` — a human who can log in (global). `phone` (unique, PIN login), `email` (verified, unique),
+  `last_org_id`. `profile_logins` — auth.users ↔ profiles, many-to-one. `method`: pin | google | email.
+- `orgs` — a group: `slug` (URL), `name`, `kind`, `plan`. `org_settings` (one row per org): modules,
+  collector_id, billing_weekday (1=Mon), sms_send_hour, sms_enabled, sms_fee, sms_monthly_cap, sms_template
+  (must contain `{total}` and `{link}`). `org_roles` (key, label, permissions[]), `org_categories`,
+  `org_meal_slots` (key, label, cutoff), `org_invites`, `circles` + `circle_members` (phase 1b UI).
+- `members` — someone inside one group: `org_id`, `profile_id` (null = SMS-only guest), `role_key`,
+  `status` active | pending | inactive, `phone` (SMS), `view_token` (24 hex, for `/b/<token>`).
+- Money tables all have `org_id`: `expenses` + `expense_shares` (sum of shares = amount), `budgets`,
+  `menu_items` (per date + meal slot), `orders` (one per member/date/slot; `payee_id` = collector at order
+  time, item name/price snapshotted), `meal_payers` (who paid the vendor for one date + slot; set on the
+  packing page; new orders take it as `payee_id`, else the collector). Shared meal items (family pack,
+  drinks) are `expenses` with `meal_date` + `meal` set, split among who ate, paid by that meal's payer.
+  **Shared-bill meals** (`org_meal_slots.pooled` default, `meal_days` per-day override): nobody picks an item;
+  people join (`meal_joins`) and the bill (shared items) is split equally among them, re-split on every
+  join change by `resplitMeal` (lib/meals.ts; custom-split bills are left alone). `settlements`, `sms_logs` (fee only on first *sent* SMS per member
+  per week). Their person columns keep the old names (`person_id`, `paid_by`, `from_person`…) but point
+  at `members`, through **composite FKs `(org_id, x) -> members (org_id, id)`**, so the DB itself rejects
+  any cross-group reference.
+- New groups: `create_org(...)` RPC (seeds roles, settings, categories, meal slots by kind, owner member).
 
-**Ledger** (view `public.ledger`): each row = `debtor owes creditor amount`, with `source`
-(expense | meal | sms | settlement), `ref_id`, `label`, `entry_date`.
+**Ledger** (view `public.ledger`): each row = `debtor owes creditor amount` inside one `org_id`, with
+`source` (expense | meal | sms | settlement), `ref_id`, `label`, `entry_date`, `circle_id`.
 A settlement A→B is stored as **B owes A** so it cancels A's debt.
-`pair_balances(p_until)` nets per pair → rows with positive amount. Never compute balances in JS from raw
-tables; use `getPairs()` / `summarize()`.
+`pair_balances(p_org, p_until, p_circle)` nets per pair → rows with positive amount. Never compute balances
+in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
 
 ## Security rules (keep these)
 - RLS is enabled on every table with **no policies** → browser keys can read nothing. Advisor shows
   "RLS enabled no policy" as INFO; that's intentional.
-- All data access is server-side with the service-role client (`createAdminClient()`), **after**
-  `requireMember()` / `requireAdmin()` and explicit ownership checks. Every server action re-checks
-  permissions; never trust hidden form fields for who the user is.
+- All data access is server-side with the service-role client, **after** `requireMember(slug)` and
+  `can(ctx, ...)` checks. Group data goes through `orgDb(ctx.org.id)` only; eslint forbids
+  `createAdminClient` in `src/app` and `src/components` except actions/auth.ts, actions/admin.ts and
+  auth/callback (identity-level code). Every server action re-checks membership and permissions.
+- Group forms post a hidden `org` (slug) via `<OrgField />`. It only selects which membership to check;
+  never trust hidden fields for who the user is. Validate every id in a form against the group (orgDb).
+- Not a member of a group (or no such group) = 404, so group slugs can't be probed.
+- Nobody grants a permission they don't hold; only owners change owners; a group keeps ≥ 1 owner.
+  An admin may set/reset a PIN only for a profile that lives entirely in their group (`profileOwnedByOrg`).
 - `pair_balances` and `ledger` are revoked from anon/authenticated.
+- PostgREST embeds: `members` → `orgs` must be written `orgs!members_org_id_fkey(*)`. A table whose primary key
+  holds both `org_id` and a member FK (like `meal_joins`) counts as a second members↔orgs path, and a plain
+  `orgs(*)` then fails with PGRST201 (the groups list goes empty). Check embeds after adding such a table.
 - PIN logins use an internal email `<phone>@AUTH_EMAIL_DOMAIN`; look up the auth email via
   `auth.admin.getUserById` (don't rebuild it), since Google users may add a PIN later.
-- `/b/[token]` is public by design; only show that person's data.
+- `/b/[token]` is public by design; only show that member's data, from their own group.
 
 ## Commands
 ```bash
@@ -138,32 +192,56 @@ Run typecheck + lint + build before saying something is done.
 ## Environment (.env.local, never commit)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable key), `SUPABASE_SERVICE_ROLE_KEY`
 (secret, server only), `NEXT_PUBLIC_APP_URL`, `AUTH_EMAIL_DOMAIN` (kotasa.local),
-`NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `CRON_SECRET`, `NOTIFY_USER_ID`, `NOTIFY_API_KEY`,
-`NOTIFY_SENDER_ID`. Template in `.env.example`.
+`NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `CRON_SECRET`, `SMS_PROVIDER`, `TEXTLK_API_KEY`,
+`TEXTLK_SENDER_ID` (Notify.lk: `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID`). Template in `.env.example`.
 
 ## Current status (2026-10-10)
 Done:
 - v2 app built; `next build`, tsc and eslint pass. Ledger/balance SQL tested on local Postgres
   (Uber + meals + payment case nets correctly).
 - Supabase project **kotasa**, ref `itutrhdrqrbvqkysnvdd`, region ap-south-1, migration `init` applied.
+- Runs locally against Supabase. First admin (Kavi) created via `/setup`. Supabase accepts the
+  `kotasa.local` PIN email domain.
+- Every screen tested end to end in headless Edge (mobile/desktop, light/dark). Covered: guest add,
+  menu, meal order, equal split, edit, settle, budget, packing list, orders, public bill `/b/<token>`
+  and a bad token (404). Test data was removed afterwards. Not exercised: Google login, SMS send,
+  saving settings.
+
+Direction (Kavi, 2026-10-10): Kotasa becomes multi-tenant. Anyone signs up and creates groups of any
+kind, each group configures itself, one person can be in many groups, and pricing comes later. Plan:
+`docs/multi-tenant-plan.md`. Phase 1 (tenant model) comes before the office starts using the app.
+Read the plan before touching schema, auth or routes.
+
+- Phase 1a (multi-tenant model) built on branch `multi-tenant`. Migration `multi_tenant` applied to
+  Supabase on 2026-10-10 (Kavi is owner of group "Office", slug `office`). Full e2e run against the
+  production build: 82/82 checks across 4 users and 3 groups (PIN users, guests, approval invites,
+  guest claim, owner/admin/member/custom Treasurer roles, forged org/participant/edit requests,
+  equal + custom splits, settle incl. "between others", budgets, meals + custom slot + module switch,
+  categories, SMS dry run, leaving, owner protections, cross-group isolation). Test data removed.
 
 Not done yet / next steps:
-1. Put `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`, run locally, create first admin at `/setup`,
-   and click through every screen (never tested in a real browser against Supabase).
-2. Deploy to Vercel (project not created yet), set all env vars, set `NEXT_PUBLIC_APP_URL`.
-3. Supabase Auth → URL config: Site URL + redirect `<app>/auth/callback` (and localhost).
-4. Google OAuth client → Supabase Google provider → set `NEXT_PUBLIC_GOOGLE_LOGIN=on`.
-5. Notify.lk keys; verify their current API in `src/lib/sms.ts` (`sendViaNotifyLk`) before enabling SMS.
-6. Check that Supabase accepts the `kotasa.local` email domain for PIN users; if `createUser` rejects it,
-   change `AUTH_EMAIL_DOMAIN` (e.g. a subdomain you own).
+0. Commit and merge `multi-tenant`. Phase 1b: role editor UI, circles UI. A "delete group" feature
+   needs a `delete_org()` SQL function: deleting from `orgs` alone fails, because the cascade reaches
+   `members` before `expense_shares`.
+1. Deploy to Vercel (project not created yet), set all env vars, set `NEXT_PUBLIC_APP_URL`.
+2. Supabase Auth → URL config: Site URL + redirect `<app>/auth/callback` (and localhost).
+3. Google OAuth client → Supabase Google provider → set `NEXT_PUBLIC_GOOGLE_LOGIN=on`.
+4. Text.lk: account (Vimmik) + API key done; test SMS via Admin → Weekly SMS → "Send test" delivered on
+   2026-10-10 with `TextLKDemo` (plain, 1 unit). A real weekly run to 3 guests also went out (2 SMS parts each,
+   bill link was still localhost). Unicode `type` is untested.
+   **Test group:** "Vimmik" (slug `vimmik`, kind friends, SMS on) — Kavi (owner/collector) + guests Mahima, Mahesh,
+   Vishwa (Vimmik teammates, real numbers). Keep it for testing; clear only its expenses/sms_logs after a test.
+   Request sender ID "Kotasa" in the Text.lk portal (letter + NIC/BR), then set `TEXTLK_SENDER_ID`.
 
-Ideas Kavi may want later (ask first): simplify debts across people, receipts/photos, groups beyond one
-office, notifications, CSV export, Sinhala UI.
+Ideas Kavi may want later (ask first): simplify debts across people, receipts/photos, notifications,
+CSV export, Sinhala UI. Public signup (email OTP), billing/plans and launch hardening are phases 2–4 in the plan.
 
 ## Conventions
 - Money: `numeric(12,2)` in DB, `round2()` in TS, format with `rs()`. Equal splits via `splitEqually` (cent-exact).
 - Dates: always Colombo-local `YYYY-MM-DD` strings from `lib/time.ts`; don't use `new Date()` for "today".
-- Forms: server action + `useActionState`, `SubmitButton`, `FormMessage`. Validate on the server, return
+- Forms: server action + `useActionState`, `SubmitButton`, `FormMessage`. Forms with typed fields use
+  `<ActionForm action={...}>` (components/ui.tsx), not `<form action>`: React 19 resets uncontrolled
+  fields after every form action, even one that returns an error, which wipes what the person typed. Validate on the server, return
   `{ error }` with a human sentence (what happened + what to do), sentence case, no "please".
 - Mobile first: bottom nav is fixed, so page content has `pb-28` on mobile; sticky submit buttons sit at `bottom-20`.
 - Accessibility: labels on every input, `aria-label` on icon-only buttons, `aria-current` on nav.
