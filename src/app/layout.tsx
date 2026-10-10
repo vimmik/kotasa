@@ -3,6 +3,7 @@ import "@fontsource-variable/geist";
 import "./globals.css";
 import { BRAND } from "@/lib/brand";
 import { Ambient } from "@/components/ambient";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: { default: `${BRAND.name} — ${BRAND.tagline}`, template: `%s · ${BRAND.name}` },
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans">
         <Ambient />
         {children}
+        <Analytics />
       </body>
     </html>
   );
