@@ -49,7 +49,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         <input type="hidden" name="next" value={next} />
         <div>
           <label className="label" htmlFor="phone">Mobile number</label>
-          <input id="phone" name="phone" className="input min-h-12 rounded-2xl" inputMode="tel" placeholder="0771234567" required autoComplete="tel" />
+          <input id="phone" name="phone" className="input min-h-12 rounded-2xl" inputMode="tel" placeholder="0771234567" required autoComplete="tel" pattern="[\d+()\s-]{9,20}" maxLength={20} title="Enter a valid mobile number, e.g. 0771234567" />
         </div>
         <div>
           <label className="label" htmlFor="pin">6-digit PIN</label>
