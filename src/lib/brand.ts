@@ -9,5 +9,12 @@ export const BRAND = {
 };
 
 export function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  // Prefer the explicit public URL. On Vercel, fall back to the deployment's own
+  // URL so a missing NEXT_PUBLIC_APP_URL never ships localhost links to production.
+  // (VERCEL_* are server-only; appUrl() is called from server components/actions.)
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (vercel ? `https://${vercel}` : "http://localhost:3000");
+  return base.replace(/\/$/, "");
 }
