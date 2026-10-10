@@ -260,6 +260,47 @@ p {
 @utility btn-danger {
   @apply btn bg-danger-soft text-danger hover:brightness-95;
 }
+/* In-app confirm dialog (components/ui.tsx ConfirmButton), opened with showModal(). */
+@utility confirm-dialog {
+  @apply m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-line bg-surface p-5 text-ink;
+  box-shadow:
+    inset 0 1px 0 var(--edge-hi),
+    var(--deep-shadow);
+  &::backdrop {
+    background: color-mix(in oklab, black 45%, transparent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      opacity 180ms var(--ease-out-soft),
+      transform 180ms var(--ease-out-soft),
+      overlay 180ms allow-discrete,
+      display 180ms allow-discrete;
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    &[open] {
+      opacity: 1;
+      transform: none;
+    }
+    @starting-style {
+      &[open] {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+      }
+    }
+    &::backdrop {
+      transition: opacity 180ms var(--ease-out-soft), overlay 180ms allow-discrete, display 180ms allow-discrete;
+      opacity: 0;
+    }
+    &[open]::backdrop {
+      opacity: 1;
+    }
+    @starting-style {
+      &[open]::backdrop {
+        opacity: 0;
+      }
+    }
+  }
+}
 @utility input {
   @apply min-h-10 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none placeholder:text-muted/70 transition duration-200 focus:border-brand focus:ring-4 focus:ring-brand/15 sm:text-sm;
 }

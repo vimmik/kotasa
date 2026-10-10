@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: { default: `${BRAND.name} — ${BRAND.tagline}`, template: `%s · ${BRAND.name}` },
   description: BRAND.description,
   applicationName: BRAND.name,
+  authors: [{ name: BRAND.developer.name, url: BRAND.developer.url }],
+  creator: BRAND.developer.name,
   appleWebApp: { capable: true, title: BRAND.name, statusBarStyle: "default" },
 };
 

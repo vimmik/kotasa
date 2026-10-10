@@ -1,6 +1,6 @@
 import { ArrowDownLeft, Car, ChatText } from "@phosphor-icons/react/ssr";
 import { BRAND } from "@/lib/brand";
-import { LogoMark } from "@/components/brand";
+import { DevelopedBy, LogoMark } from "@/components/brand";
 import { Avatar } from "@/components/bits";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tilt } from "@/components/tilt";
@@ -115,6 +115,7 @@ export function AuthShell({
           {footer && <div className="mt-6 text-center text-xs text-muted">{footer}</div>}
         </section>
       </div>
+      <DevelopedBy />
     </main>
   );
 }

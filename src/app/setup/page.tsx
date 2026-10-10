@@ -2,23 +2,23 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { hasAdmin } from "@/lib/auth";
+import { hasAnyProfile } from "@/lib/auth";
 import { AuthShell } from "@/components/auth-shell";
 import { SetupForm } from "./setup-form";
 
 export const metadata: Metadata = { title: "Set up" };
 
-/** Setup is one-time: once an admin exists, send people to log in. */
+/** Setup is one-time: once anyone has an account, send people to log in. */
 async function Gate() {
-  if (await hasAdmin()) redirect("/login");
+  if (await hasAnyProfile()) redirect("/login");
   return <SetupForm />;
 }
 
 export default function SetupPage() {
   return (
     <AuthShell
-      title="Set up your office"
-      sub="Create the first admin. This works once; after that, admins add people from the panel. You can also sign in with Google first instead and the very first account becomes admin."
+      title="Set up Kotasa"
+      sub="Create the first account and its first group. This works once; after that, people sign in and create or join groups."
       footer={
         <>
           Already set up?{" "}

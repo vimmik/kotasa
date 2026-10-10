@@ -1,6 +1,7 @@
 {
   "name": "kotasa",
   "version": "0.1.0",
+  "author": "Vimmik (https://github.com/vimmik)",
   "private": true,
   "scripts": {
     "dev": "next dev",

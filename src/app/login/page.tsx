@@ -1,20 +1,20 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { hasAdmin } from "@/lib/auth";
+import { hasAnyProfile } from "@/lib/auth";
 import { AuthShell } from "@/components/auth-shell";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Log in" };
 
-/** Only shown before the first admin exists. */
+/** Only shown before anyone has an account (first run). */
 async function SetupLink() {
-  if (await hasAdmin()) return null;
+  if (await hasAnyProfile()) return null;
   return (
     <>
-      Setting up for your office?{" "}
+      First time here?{" "}
       <Link href="/setup" className="font-semibold text-brand underline-offset-2 hover:underline">
-        Create the admin account
+        Create the first account
       </Link>
     </>
   );

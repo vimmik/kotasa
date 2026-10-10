@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { loginWithGoogle, loginWithPin } from "@/app/actions/auth";
-import { FormMessage, PillSubmit, SubmitButton } from "@/components/ui";
+import { ActionForm, FormMessage, PillSubmit, SubmitButton } from "@/components/ui";
 
 const ERRORS: Record<string, string> = {
   google: "Google sign-in didn't complete. Try again.",
@@ -23,7 +23,9 @@ function GoogleG() {
 
 export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [state, action] = useActionState(loginWithPin, null);
-  const err = useSearchParams().get("error");
+  const params = useSearchParams();
+  const err = params.get("error");
+  const next = params.get("next") ?? "/";
 
   return (
     <div className="space-y-4">
@@ -32,6 +34,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
       {googleEnabled && (
         <>
           <form action={loginWithGoogle}>
+            <input type="hidden" name="next" value={next} />
             <SubmitButton className="btn-ghost min-h-12 w-full rounded-full" pendingText="Opening Google…">
               <GoogleG /> Continue with Google
             </SubmitButton>
@@ -42,7 +45,8 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         </>
       )}
 
-      <form action={action} className="space-y-3">
+      <ActionForm action={action} className="space-y-3">
+        <input type="hidden" name="next" value={next} />
         <div>
           <label className="label" htmlFor="phone">Mobile number</label>
           <input id="phone" name="phone" className="input min-h-12 rounded-2xl" inputMode="tel" placeholder="0771234567" required autoComplete="tel" />
@@ -53,7 +57,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         </div>
         <FormMessage state={state} />
         <PillSubmit pendingText="Logging in…">Log in</PillSubmit>
-      </form>
+      </ActionForm>
     </div>
   );
 }

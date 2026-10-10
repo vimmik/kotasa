@@ -1,5 +1,21 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import { Moped, Car, Gift, Receipt, ShoppingBag, ForkKnife, Lightning } from "@phosphor-icons/react/ssr";
+import {
+  Airplane,
+  Bed,
+  Car,
+  Coffee,
+  FirstAid,
+  ForkKnife,
+  GasPump,
+  Gift,
+  House,
+  Lightning,
+  Moped,
+  Receipt,
+  ShoppingBag,
+  Ticket,
+  Users,
+} from "@phosphor-icons/react/ssr";
 import { rs } from "@/lib/types";
 
 const AVATAR_TONES = [
@@ -40,19 +56,27 @@ export function Money({ value, signed = false, className = "" }: { value: number
   );
 }
 
-export const CATEGORY_ICON: Record<string, PhosphorIcon> = {
-  food: ForkKnife,
-  ride: Car,
-  shopping: ShoppingBag,
-  bills: Lightning,
-  fun: Gift,
-  other: Receipt,
-  meal: ForkKnife,
-  delivery: Moped,
+/** Icons a group can pick for its categories (stored by name in org_categories.icon). */
+export const ICONS: Record<string, PhosphorIcon> = {
+  "fork-knife": ForkKnife,
+  car: Car,
+  "shopping-bag": ShoppingBag,
+  lightning: Lightning,
+  gift: Gift,
+  receipt: Receipt,
+  "gas-pump": GasPump,
+  bed: Bed,
+  ticket: Ticket,
+  "first-aid": FirstAid,
+  coffee: Coffee,
+  house: House,
+  airplane: Airplane,
+  moped: Moped,
+  users: Users,
 };
 
-export function CategoryIcon({ category, size = 18 }: { category: string; size?: number }) {
-  const Icon = CATEGORY_ICON[category] ?? Receipt;
+export function CategoryIcon({ icon, size = 18 }: { icon?: string | null; size?: number }) {
+  const Icon = (icon && ICONS[icon]) || Receipt;
   return (
     <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
       <Icon size={size} aria-hidden="true" />

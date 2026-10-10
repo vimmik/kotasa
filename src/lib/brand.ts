@@ -5,6 +5,7 @@ export const BRAND = {
   tagline: "Share it. Settle it.",
   description: "Shared office expenses — meals, rides and anything else — split fairly and settled weekly.",
   colors: { primary: "#0E7C66", amber: "#F2A33A", darkBg: "#0B1210" },
+  developer: { name: "Vimmik", url: "https://github.com/vimmik", logo: "/brand/vimmik.png" },
 };
 
 export function appUrl() {

@@ -3,12 +3,14 @@
 import { useActionState } from "react";
 import { addMenuItem, copyMenu, deleteMenuItem, updateMenuItem } from "@/app/actions/meals";
 import { FormMessage, SubmitButton } from "@/components/ui";
-import type { Meal, MenuItem } from "@/lib/types";
+import { OrgField } from "@/components/org-field";
+import type { MenuItem } from "@/lib/types";
 
-export function AddMenuItemForm({ date, meal }: { date: string; meal: Meal }) {
+export function AddMenuItemForm({ date, meal }: { date: string; meal: string }) {
   const [state, action] = useActionState(addMenuItem, null);
   return (
     <form action={action} className="mt-3 space-y-2" key={state?.message}>
+      <OrgField />
       <input type="hidden" name="date" value={date} />
       <input type="hidden" name="meal" value={meal} />
       <div className="flex gap-2">
@@ -26,6 +28,7 @@ export function MenuItemRow({ item, orders }: { item: MenuItem; orders: number }
   return (
     <li className="py-2.5">
       <form action={action} className="flex flex-wrap items-center gap-2">
+        <OrgField />
         <input type="hidden" name="id" value={item.id} />
         <input name="name" defaultValue={item.name} className="input min-w-36 flex-1 py-1.5" aria-label="Item name" />
         <input name="price" defaultValue={item.price} className="input w-24 py-1.5" inputMode="decimal" aria-label="Price" />
@@ -47,6 +50,7 @@ export function CopyMenuForm({ to, suggestFrom }: { to: string; suggestFrom: str
   const [state, action] = useActionState(copyMenu, null);
   return (
     <form action={action} className="flex flex-wrap items-center gap-2">
+      <OrgField />
       <input type="hidden" name="to" value={to} />
       <span className="text-sm text-muted">Copy menu from</span>
       <input type="date" name="from" defaultValue={suggestFrom} className="input w-auto" aria-label="Copy from date" />
