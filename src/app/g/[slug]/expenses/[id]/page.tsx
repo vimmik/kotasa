@@ -9,6 +9,7 @@ import { fmtDay, todayColombo } from "@/lib/time";
 import { rs, type Expense, type ExpenseShare } from "@/lib/types";
 import { deleteExpense } from "@/app/actions/expenses";
 import { Avatar, CategoryIcon, PageHeader } from "@/components/bits";
+import { ConfirmButton } from "@/components/ui";
 import { ExpenseForm } from "@/components/expense-form";
 
 export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[id]">) {
@@ -122,9 +123,16 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
             <form action={deleteExpense}>
               <input type="hidden" name="org" value={slug} />
               <input type="hidden" name="id" value={id} />
-              <button className="btn-danger">
+              <ConfirmButton
+                className="btn-danger"
+                pendingText="Deleting…"
+                title="Delete this expense?"
+                message="This removes it for everyone and updates balances. It can't be undone."
+                confirmText="Delete expense"
+                danger
+              >
                 <Trash size={15} aria-hidden="true" /> Delete
-              </button>
+              </ConfirmButton>
             </form>
           </>
         )}
