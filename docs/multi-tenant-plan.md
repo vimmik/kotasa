@@ -1,6 +1,6 @@
 # Multi-tenant Kotasa: design plan
 
-Status: draft for Kavi's review (2026-10-10). Nothing here is built yet.
+Status: approved by Kavi (2026-10-10). Open questions answered; see Decisions. Phase 1a is next.
 
 ## Goal
 
@@ -19,6 +19,12 @@ database has no real data yet (only Kavi's admin account), so this is the cheape
 - Public signup: Google and email OTP. Phone + PIN stays for people an admin adds.
 - Pricing and billing: later. Keep a `plan` column so it can be added without another migration.
 - Order: build the tenant model, use it in Kavi's office, then open signup.
+- Groups get **custom roles** (named permission sets) and **circles** (sub-groups of members inside a
+  group). Both are designed below.
+- URLs look like `/g/<group-slug>/...`.
+- Every module, meals included, can be switched on by any group. Defaults depend on the group kind.
+- Someone with a balance can still leave a group. They become inactive, their history stays, and
+  admins see what is still owed.
 
 ## Core idea: account vs. member
 
@@ -40,7 +46,6 @@ All new tables have RLS enabled with no policies, like today (see Isolation).
 
 ```sql
 create type org_kind as enum ('office', 'friends', 'trip', 'family', 'club', 'other');
-create type member_role as enum ('owner', 'admin', 'member');
 create type member_status as enum ('active', 'pending', 'inactive');
 
 create table profiles (
@@ -78,7 +83,7 @@ create table members (
   display_name text not null,
   phone       text,                     -- for SMS in this group
   email       text,                     -- lets an invited person's signup link automatically
-  role        member_role not null default 'member',
+  role_key    text not null default 'member',  -- composite FK (org_id, role_key) -> org_roles
   status      member_status not null default 'active',
   view_token  text not null unique default left(replace(gen_random_uuid()::text,'-',''),24),
   created_at  timestamptz not null default now(),
@@ -112,13 +117,11 @@ if the app code has a bug. Apply the same pattern to `orders`, `settlements`, `s
 ```sql
 create table org_settings (
   org_id            uuid primary key references orgs on delete cascade,
-  -- modules
-  meals_enabled     boolean not null default false,  -- on by default only for kind = 'office'
+  -- modules: any group can switch any of these on; defaults come from the kind template
+  meals_enabled     boolean not null default false,  -- template turns it on for 'office'
   budgets_enabled   boolean not null default true,
-  sms_enabled       boolean not null default false,
-  -- permissions
-  who_can_add       text not null default 'everyone' check (who_can_add in ('everyone','admins')),
-  who_can_edit      text not null default 'involved' check (who_can_edit in ('involved','admins')),
+  circles_enabled   boolean not null default true,
+  sms_enabled       boolean not null default false,  -- off until an admin turns it on
   -- billing cycle and SMS (same columns as today)
   collector_id      uuid,               -- composite FK to members
   billing_weekday   int not null default 5,
@@ -151,6 +154,87 @@ create table org_meal_slots (           -- replaces the breakfast/lunch enum
 `orders.meal` and `menu_items.meal` change from the `meal_type` enum to a `text` slot key with a
 composite FK to `org_meal_slots`. A template per `org_kind` seeds categories and slots on creation.
 For example, an office gets breakfast and lunch, and a trip gets fuel, stay and food categories.
+
+### Custom roles
+
+A role is a named set of permissions inside a group. Code checks **permissions**, never role names.
+
+```sql
+create table org_roles (
+  org_id      uuid references orgs on delete cascade,
+  key         text,                      -- 'owner', 'admin', 'member', 'treasurer', 'canteen', ...
+  label       text not null,
+  permissions text[] not null default '{}',
+  is_system   boolean not null default false,  -- owner/admin/member: can't be deleted
+  sort        int not null default 0,
+  primary key (org_id, key)
+);
+```
+
+Permission list (fixed in code in `src/lib/permissions.ts`, so a typo can't grant anything):
+
+| Permission | Lets you |
+| --- | --- |
+| `expense.add` | add expenses |
+| `expense.edit_any` | edit/delete any expense (without it: only ones you created or paid) |
+| `settle.record_any` | record a payment between two other people |
+| `meals.order_for_others` | enter or fix anyone's meal order |
+| `meals.manage_menu` | edit the daily menu and see the packing list |
+| `budgets.manage` | create, edit and close budgets |
+| `circles.manage` | create circles and change who is in them |
+| `members.invite` | create invite links, add SMS-only guests |
+| `members.manage` | approve joins, change roles, deactivate people |
+| `sms.send` | preview and send the weekly SMS |
+| `settings.manage` | modules, categories, meal slots, billing day, roles |
+
+- System roles are seeded per group. **owner** has everything, can't be edited and can't be removed
+  from the last owner. **admin** starts with everything except changing the owner. **member** starts
+  with `expense.add`.
+- Admins can create roles such as "Treasurer" (`settle.record_any`, `sms.send`) or "Canteen"
+  (`meals.manage_menu`, `meals.order_for_others`) and edit the permissions of every role except owner.
+- Nobody can grant a permission they don't hold, and the last owner can't be demoted.
+- `requireMember(slug)` loads the member's permission set once per request. `can(ctx, "sms.send")`
+  checks a permission and `requirePermission(ctx, ...)` enforces one in actions.
+
+### Circles (sub-groups)
+
+A circle is a named set of members inside a group, for example "Lunch crew", "Finance team" or "Ella
+trip" inside an office. Circles don't split the money. All balances still net across the whole
+group, because a debt between Kavi and Nimal is one debt.
+
+```sql
+create table circles (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null references orgs on delete cascade,
+  name        text not null,
+  icon        text not null default 'users',
+  visibility  text not null default 'group' check (visibility in ('group', 'circle')),
+  created_by  uuid,                      -- composite FK to members
+  created_at  timestamptz not null default now(),
+  unique (org_id, id)
+);
+create table circle_members (
+  org_id     uuid not null,
+  circle_id  uuid not null,
+  member_id  uuid not null,
+  primary key (circle_id, member_id),
+  foreign key (org_id, circle_id) references circles (org_id, id) on delete cascade,
+  foreign key (org_id, member_id) references members (org_id, id) on delete cascade
+);
+-- expenses.circle_id and budgets.circle_id: optional, composite FK to circles
+```
+
+What circles do:
+
+- **Quick split:** in the expense form, "Split with: Lunch crew" ticks exactly that circle's members.
+- **Filter:** the expenses list and activity can show a single circle. The circle page shows what
+  was spent in it and the balances from its expenses only (`pair_balances(p_org, p_until, p_circle)`).
+- **Budgets:** a budget can belong to a circle (for example "Ella trip" with a Rs. 60,000 limit).
+- **Visibility:** `group` circles are seen by everyone in the group. For `circle` visibility, only
+  its members (and holders of `circles.manage`) see its expenses in the lists. Balances still include
+  them, because the people in an expense are always members of that circle.
+
+Not in circles (yet): separate meal menus per circle, nested circles, separate billing.
 
 ### Ledger
 
@@ -191,8 +275,9 @@ Group-scoped pages move under the group's slug:
 /login /signup          auth
 ```
 
-- `requireMember(slug)` returns `{ profile, member, org, settings }`. It is cached per request and
-  replaces `requireMember()`. `requireAdmin(slug)` checks `role in ('owner','admin')`.
+- `requireMember(slug)` returns `{ profile, member, org, settings, permissions }`. It is cached per
+  request and replaces `requireMember()`. `requireAdmin()` goes away; pages and actions call
+  `requirePermission(ctx, "...")` instead (see Custom roles).
 - Server actions get the slug bound (`action.bind(null, slug)`) and run `requireMember(slug)` first.
   The slug only selects which membership to check, so you can only act where you are a member.
   Every row lookup must also match `member.org_id`.
@@ -231,8 +316,8 @@ One forward migration, written so it would also work on a database with real dat
 1. Create the new tables.
 2. Create org "Office" (name from `settings.office_name`, kind `office`) with slug `office`, which
    can be renamed later.
-3. Move `people` with logins to `profiles` + `members`, and the rest to `members` only. Admins
-   become `owner`/`admin`.
+3. Move `people` with logins to `profiles` + `members`, and the rest to `members` only. Seed the
+   system roles. The first admin becomes `owner`, other admins `admin`, everyone else `member`.
 4. Move `settings` to `org_settings`, seed categories and meal slots from today's hard-coded lists,
    add `org_id` to every table, backfill, then swap the FKs to composite ones.
 5. Rebuild `ledger` and `pair_balances`. Drop `people`, `person_logins`, `settings`.
@@ -241,10 +326,15 @@ Today this moves one account (Kavi). Test it on a local Postgres copy first, as 
 
 ## Phases
 
-**Phase 1: tenant model, then use it in the office (next).**
-Schema + migration, `orgDb`, `requireMember(slug)`, routes under `/g/[slug]`, group switcher, create
-group, per-group settings (modules, categories, meal slots, permissions), invite links, per-org cron.
-The isolation test passes. Deploy to Vercel and run Kavi's office on it.
+**Phase 1a: tenant model and roles, then use it in the office (next).**
+The full schema and migration, including the circles tables, so there is only one migration.
+`orgDb`, `requireMember(slug)`, permissions and system roles, and routes under `/g/[slug]`. Group
+switcher and create group. Per-group settings: modules, categories, meal slots, billing day. Invite
+links, per-org cron. The isolation test must pass. Then deploy to Vercel and run Kavi's office on it.
+
+**Phase 1b: custom roles UI and circles UI.**
+Role editor (create, rename, tick permissions). Circles: create, members, quick split, filter,
+circle budgets, visibility.
 
 **Phase 2: public signup.**
 Email OTP, `/signup`, onboarding (create or join), guest claiming, a landing page.
@@ -257,13 +347,10 @@ Sri Lanka payouts and recurring billing before choosing.
 RLS policies, PIN rate limits, privacy policy and terms (Sri Lanka PDPA), account and data deletion,
 backups, error monitoring. Vercel Pro (Hobby is non-commercial only) and Supabase Pro.
 
-## Open questions for Kavi
+## Answered questions (2026-10-10)
 
-1. **"Define it your way": which knobs matter first?** This plan covers modules on/off, categories,
-   meal slots with cutoffs, and who can add/edit. Anything else, for example custom roles, or
-   sub-groups inside a group? Budgets already work as "pots" for an event inside a group.
-2. **URL style:** is `/g/<group-name>/expenses` fine?
-3. **Default modules per kind:** meals on for `office` only, budgets on for everyone, SMS off until an
-   admin turns it on. OK?
-4. **Leaving a group with a balance:** block it until settled, or allow it and keep them as inactive
-   (their history stays)? Recommendation: allow, keep inactive, and show the balance to admins.
+1. Which knobs: everything above, plus custom roles and sub-groups (circles).
+2. URL style `/g/<group-slug>/...`: yes.
+3. Modules: any group can turn on any module, meals included. Kind templates only set defaults.
+4. Leaving with a balance: allowed. The member becomes inactive, history stays, admins see the
+   balance.
