@@ -40,16 +40,16 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
 
   // Everyone involved must be an active member of THIS group.
   const ids = [...new Set([paidBy, ...participants])];
-  const { data: found } = await db.select("members", "id, status").in("id", ids);
+  // The checks are independent reads, so they share one round trip.
+  const [{ data: found }, { data: cat }, budget] = await Promise.all([
+    db.select("members", "id, status").in("id", ids),
+    db.select("org_categories", "key, archived").eq("key", category).maybeSingle(),
+    budgetId ? db.select("budgets", "id").eq("id", budgetId).eq("closed", false).maybeSingle() : null,
+  ]);
   if ((found ?? []).length !== ids.length || (found as { status: string }[]).some((p) => p.status !== "active"))
     return { error: "Someone in this expense isn't an active member of this group" };
-
-  const { data: cat } = await db.select("org_categories", "key, archived").eq("key", category).maybeSingle();
   if (!cat) return { error: "Pick a category" };
-  if (budgetId) {
-    const { data: b } = await db.select("budgets", "id").eq("id", budgetId).eq("closed", false).maybeSingle();
-    if (!b) return { error: "That budget is closed or gone" };
-  }
+  if (budget && !budget.data) return { error: "That budget is closed or gone" };
 
   let shares: { person_id: string; amount: number }[];
   if (splitType === "custom") {
