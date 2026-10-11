@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC = ["/login", "/signup", "/setup", "/auth", "/b/"];
+const PUBLIC = ["/login", "/signup", "/setup", "/auth", "/b/", "/privacy", "/terms"];
 // Logged-out visitors to these are sent to /login?next=<path> and come back after signing in.
 const RETURN_TO = ["/join/", "/g/"];
 

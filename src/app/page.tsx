@@ -48,7 +48,11 @@ export default function Landing() {
         <FinalCall />
       </main>
 
-      <footer className="mt-20 border-t border-line pt-8">
+      <footer className="mt-20 space-y-4 border-t border-line pt-8 text-center text-sm text-muted">
+        <nav className="flex justify-center gap-5" aria-label="Legal">
+          <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+          <Link href="/terms" className="hover:text-ink">Terms</Link>
+        </nav>
         <DevelopedBy />
       </footer>
     </div>

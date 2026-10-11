@@ -1,4 +1,5 @@
-import { loginWithGoogle } from "@/app/actions/auth";
+import { connectGoogle, loginWithGoogle } from "@/app/actions/auth";
+import { GoogleSignIn } from "@/components/google-sign-in";
 import { SubmitButton } from "@/components/ui";
 
 function GoogleG() {
@@ -12,14 +13,38 @@ function GoogleG() {
   );
 }
 
-/** "Continue with Google". New accounts go through /welcome after the callback. */
-export function GoogleButton({ next = "/me", label = "Continue with Google" }: { next?: string; label?: string }) {
-  return (
+// Set: Google's own button on our page (ID token, our domain on the consent screen).
+// Unset: the redirect flow through Supabase and /auth/callback.
+const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+/** "Continue with Google". New accounts go through /welcome afterwards. */
+export function GoogleButton({ next = "/me", signup = false }: { next?: string; signup?: boolean }) {
+  const label = signup ? "Sign up with Google" : "Continue with Google";
+  const redirect = (
     <form action={loginWithGoogle}>
       <input type="hidden" name="next" value={next} />
       <SubmitButton className="btn-ghost min-h-12 w-full rounded-full" pendingText="Opening Google…">
         <GoogleG /> {label}
       </SubmitButton>
     </form>
+  );
+  if (!CLIENT_ID) return redirect;
+  return <GoogleSignIn clientId={CLIENT_ID} intent="login" next={next} text={signup ? "signup_with" : "continue_with"} fallback={redirect} />;
+}
+
+/** Me › Settings: add Google to the account you're logged in to. */
+export function ConnectGoogle() {
+  const redirect = (
+    <form action={connectGoogle}>
+      <SubmitButton className="btn-ghost" pendingText="Opening Google…">
+        Connect
+      </SubmitButton>
+    </form>
+  );
+  if (!CLIENT_ID) return redirect;
+  return (
+    <div className="w-full sm:w-auto">
+      <GoogleSignIn clientId={CLIENT_ID} intent="connect" text="continue_with" fallback={redirect} />
+    </div>
   );
 }

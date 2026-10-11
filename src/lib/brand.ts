@@ -6,6 +6,8 @@ export const BRAND = {
   description: "Split shared costs with any group, settle up weekly, and see how much you can safely spend today.",
   colors: { primary: "#0E7C66", amber: "#F2A33A", darkBg: "#0B1210" },
   developer: { name: "Vimmik", url: "https://github.com/vimmik", logo: "/brand/vimmik.png" },
+  // Shown on /privacy and /terms for questions and data deletion.
+  contactEmail: "info@vimmik.com",
 };
 
 export function appUrl() {

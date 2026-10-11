@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CheckCircle, DeviceMobile, GoogleLogo, LockSimple, SignOut } from "@phosphor-icons/react/ssr";
-import { connectGoogle, logout } from "@/app/actions/auth";
+import { logout } from "@/app/actions/auth";
 import { loginMethods } from "@/lib/logins";
 import { displayPhone } from "@/lib/phone";
 import { getGroupFeeds, getMe } from "@/lib/personal";
@@ -8,7 +8,7 @@ import type { Profile } from "@/lib/types";
 import { PinForm } from "@/components/account-forms";
 import { PageHeader } from "@/components/bits";
 import { ConnectPhoneForm } from "@/components/sign-in-forms";
-import { SubmitButton } from "@/components/ui";
+import { ConnectGoogle } from "@/components/google-button";
 import { CategoryList, GroupFeedCard, MoneySettingsForm } from "@/components/me-settings-forms";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -16,7 +16,6 @@ export const metadata: Metadata = { title: "Settings" };
 
 const NOTICES: Record<string, string> = {
   "google=connected": "Google is connected. You can log in with Google or your number and PIN.",
-  "google=expired": "Connecting Google took too long. Try again.",
   "phone=connected": "Your accounts are connected. Your groups and history are all here now.",
 };
 
@@ -96,14 +95,8 @@ function SignInCard({ profile, methods }: { profile: Profile; methods: Set<strin
           <p className="font-medium">Google</p>
           <p className="truncate text-sm text-muted">{hasGoogle ? (profile.email ?? "Connected") : "Not connected"}</p>
         </div>
-        {!hasGoogle && googleEnabled && (
-          <form action={connectGoogle}>
-            <SubmitButton className="btn-ghost" pendingText="Opening Google…">
-              Connect
-            </SubmitButton>
-          </form>
-        )}
       </div>
+      {!hasGoogle && googleEnabled && <ConnectGoogle />}
 
       <div className="space-y-3 border-t border-line pt-4">
         <div className="flex items-center gap-3">

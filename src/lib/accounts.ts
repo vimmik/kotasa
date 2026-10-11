@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
+import { currencyForCountry } from "@/lib/currency";
 import { slugify } from "@/lib/org-config";
 import type { Invite, Member, Org, OrgKind, OrgSettings, Profile } from "@/lib/types";
 
@@ -260,4 +261,50 @@ export async function mergeNewProfileInto(fromId: string, toId: string): Promise
   }
   await admin.from("profiles").delete().eq("id", fromId); // its Me categories go with it
   return null;
+}
+
+export type GoogleOutcome = { path: string } | { error: "in-use" | "link" | "google" };
+
+/**
+ * What happens after Google has signed someone in, by redirect (/auth/callback) or by ID token
+ * (signInWithGoogleToken). The caller signs the session out on an error.
+ * - linkTo set: "Connect Google" for that profile. Link this login to it, or fail.
+ * - Already linked: go on.
+ * - Otherwise find or create the profile by the verified email. A new one goes through /welcome
+ *   first, unless it came from an invite link.
+ */
+export async function completeGoogleLogin(
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> },
+  opts: { next: string; linkTo?: string | null; country?: string | null },
+): Promise<GoogleOutcome> {
+  const { data: linked } = await createAdminClient()
+    .from("profile_logins")
+    .select("profile_id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const email = user.email?.toLowerCase();
+
+  if (opts.linkTo) {
+    if (linked) return linked.profile_id === opts.linkTo ? { path: opts.next } : { error: "in-use" };
+    if (!email) return { error: "google" };
+    const err = await linkGoogle(opts.linkTo, user.id, email);
+    if (!err) return { path: opts.next };
+    return { error: err.includes("another Kotasa account") ? "in-use" : "link" };
+  }
+
+  if (linked) return { path: opts.next };
+  if (!email) return { error: "google" };
+  const meta = user.user_metadata ?? {};
+  try {
+    const { created } = await profileForVerifiedEmail({
+      authUserId: user.id,
+      email,
+      name: String(meta.full_name || meta.name || email.split("@")[0]),
+      method: "google",
+      currency: currencyForCountry(opts.country),
+    });
+    return { path: created && !opts.next.startsWith("/join/") ? "/welcome" : opts.next };
+  } catch {
+    return { error: "google" };
+  }
 }
