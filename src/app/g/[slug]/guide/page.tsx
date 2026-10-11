@@ -258,6 +258,10 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
           <Faq q="Can I leave a group?">
             Yes, from your Account page. Your history stays, and anything you still owe is still owed.
           </Faq>
+          <Faq q="What is Me?">
+            Your own budget and spending, private to you. Your share of this group&apos;s expenses and meals shows up there
+            by itself, next to anything you add yourself. Open it from the group menu at the top.
+          </Faq>
           <Faq q="Who can see my balances?">
             Only people in this group. Your bill link shows your balances to anyone who has the link, so share it with care.
           </Faq>

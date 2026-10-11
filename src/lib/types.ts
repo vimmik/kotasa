@@ -18,6 +18,12 @@ export type Profile = {
   phone: string | null;
   last_org_id: string | null;
   is_platform_admin: boolean;
+  plan: string;
+  /** Currency for Me (ISO code). Group shares in another currency aren't counted. */
+  currency: string;
+  monthly_income: number | null;
+  /** Salary day 1-28, for "payday to payday" budgets */
+  payday: number | null;
   created_at: string;
 };
 
