@@ -40,12 +40,14 @@ export async function profileForVerifiedEmail(opts: {
   email: string;
   name: string;
   method: "google" | "email";
+  /** Me currency for a new profile, from the visitor's country */
+  currency?: string;
 }): Promise<Profile> {
   const admin = createAdminClient();
   const email = opts.email.toLowerCase();
   let { data: profile } = await admin.from("profiles").select("*").eq("email", email).maybeSingle();
   if (!profile) {
-    const { data, error } = await admin.from("profiles").insert({ full_name: opts.name, email }).select("*").single();
+    const { data, error } = await admin.from("profiles").insert({ full_name: opts.name, email, currency: opts.currency ?? "LKR" }).select("*").single();
     if (error || !data) throw new Error(error?.message ?? "Couldn't create your account");
     profile = data;
   }

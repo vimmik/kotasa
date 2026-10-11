@@ -91,7 +91,10 @@ Product decisions Kavi made (don't change without asking):
 ```
 src/proxy.ts                 refresh Supabase session; logged-out -> /login (with ?next= for /g/ and /join/)
                              (public: /login /setup /auth /b/)
-src/app/page.tsx             "/" -> last used group, or /groups
+src/app/page.tsx             "/" -> /me
+src/app/me/                  Me: private personal budgets (docs/personal-budget-plan.md). Today (safe to spend,
+                             quick add), add, spending (+[id] edit), budgets (+new, [id]), settings (currency,
+                             income, payday, categories, per-group feed + category mapping)
 src/app/groups/              your groups, pending joins, create a group
 src/app/join/[code]/         accept an invite link
 src/app/g/[slug]/            one group (layout: requireMember(slug), group switcher, nav by modules/perms)
@@ -109,11 +112,18 @@ src/app/b/[token]/           PUBLIC read-only bill for one member (from SMS), no
 src/app/auth/callback/       Google: linked login -> done; else profile by verified email + claim invited members
 src/app/login, setup         setup = first-run only (first account + first group)
 src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
-src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts
+src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,
+                             personal.ts (Me; profile comes from the session only)
 src/lib/
   auth.ts                    getCurrentProfile, requireMember(slug) -> OrgContext, can(), requirePermission,
                              requireMemberFromForm (hidden "org" field), requireModule, getMemberships
   org-db.ts                  orgDb(orgId): select/insert/update/delete always scoped to one group
+  me-db.ts                   meDb(profileId): same idea for Me tables (personal_*), plus spend()/seed() RPCs
+  personal.ts                getMe (seeds categories), getSpend, budgetStatus (periods, carry, safe-to-spend),
+                             getHabits (quick-add chips), suggestBudget, getGroupFeeds
+  periods.ts                 day/week/month/year/payday/custom ranges, closedPeriods for rollover
+  quick-add.ts               one-line parser ("uber 1,200 yesterday"), category guess (history, then keywords)
+  currency.ts                Me currencies, money(n, cur), currencyForCountry
   accounts.ts                createGroup, invites (find/accept), Google profile linking, cron group list
   org-config.ts              categories, meal slots, roles, invites, slugify/keyify, expense icon map
   permissions.ts             permission keys + labels
@@ -152,6 +162,14 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   at `members`, through **composite FKs `(org_id, x) -> members (org_id, id)`**, so the DB itself rejects
   any cross-group reference.
 - New groups: `create_org(...)` RPC (seeds roles, settings, categories, meal slots by kind, owner member).
+
+**Me (personal)**: `profiles` has `currency`, `monthly_income`, `payday`, `plan`. Tables `personal_categories`,
+`personal_category_map`, `personal_group_feed`, `personal_expenses`, `personal_budgets`, all keyed by `profile_id`.
+`personal_spend(profile, from, to)` returns what you consumed: own entries + your expense shares, meal orders and
+SMS fees from every group (not what you paid for others, not settlements). `counted=false` for groups in another
+currency. All Me totals come from it. Nobody but the profile ever reads Me data.
+Gotcha: identical Supabase GETs in one render are deduped by Next, so a re-read after a write in the same render
+must differ (see getMe).
 
 **Ledger** (view `public.ledger`): each row = `debtor owes creditor amount` inside one `org_id`, with
 `source` (expense | meal | sms | settlement), `ref_id`, `label`, `entry_date`, `circle_id`.
@@ -218,6 +236,11 @@ Read the plan before touching schema, auth or routes.
   guest claim, owner/admin/member/custom Treasurer roles, forged org/participant/edit requests,
   equal + custom splits, settle incl. "between others", budgets, meals + custom slot + module switch,
   categories, SMS dry run, leaving, owner protections, cross-group isolation). Test data removed.
+
+- Me (personal budgets) phase A built on branch `feat/personal-budgets` (2026-10-11), migration `personal`
+  applied. E2E 39/39 against the production build (first-visit seeding, quick add + undo, group feed, USD group
+  not counted, monthly/daily-carry/custom budgets, safe-to-spend math, category mapping, feed off, income
+  suggestion, edit/delete, 404, light/dark, 360px). Test data removed. Next: phase B (bills, goals, owed-to-you).
 
 Not done yet / next steps:
 0. Commit and merge `multi-tenant`. Phase 1b: role editor UI, circles UI. A "delete group" feature
