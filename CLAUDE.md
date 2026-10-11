@@ -93,6 +93,7 @@ src/proxy.ts                 refresh Supabase session; logged-out -> /login (wit
                              (public: /login /signup /setup /auth /b/); "/" -> /me when logged in
 src/app/page.tsx             landing page for logged-out visitors (static). Logged-in people never see it.
                              Server-action redirects skip the proxy, so after login redirect to /me, never "/"
+src/app/privacy, terms       public legal pages (needed for Google brand verification); contact = BRAND.contactEmail
 src/app/signup/              Google sign-up (shows "not open yet" when NEXT_PUBLIC_GOOGLE_LOGIN=off)
 src/app/welcome/             onboarding after a brand-new Google account (auth callback sends it here unless it
                              came from an invite): name, currency, income -> monthly main budget / create group /
@@ -219,7 +220,8 @@ Run typecheck + lint + build before saying something is done.
 ## Environment (.env.local, never commit)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable key), `SUPABASE_SERVICE_ROLE_KEY`
 (secret, server only), `NEXT_PUBLIC_APP_URL`, `AUTH_EMAIL_DOMAIN` (kotasa.local),
-`NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `CRON_SECRET`, `SMS_PROVIDER`, `TEXTLK_API_KEY`,
+`NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (set: Google's own button +
+`signInWithIdToken`, so the consent screen shows our domain; empty: Supabase redirect flow), `CRON_SECRET`, `SMS_PROVIDER`, `TEXTLK_API_KEY`,
 `TEXTLK_SENDER_ID` (Notify.lk: `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID`). Template in `.env.example`.
 
 ## Databases (since 2026-10-11)

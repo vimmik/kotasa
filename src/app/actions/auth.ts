@@ -2,9 +2,10 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, hasAnyProfile, requireMemberFromForm, requireProfile } from "@/lib/auth";
-import { acceptInvite, createGroup, findInvite, LINK_COOKIE, linkTicket, mergeNewProfileInto } from "@/lib/accounts";
+import { acceptInvite, completeGoogleLogin, createGroup, findInvite, LINK_COOKIE, linkTicket, mergeNewProfileInto } from "@/lib/accounts";
 import { loginMethods, pinMatches, upsertPinLogin } from "@/lib/logins";
 import { orgDb } from "@/lib/org-db";
 import { isValidPin, normalizePhone } from "@/lib/phone";
@@ -79,8 +80,50 @@ async function googleRedirect(next: string): Promise<never> {
   redirect(data.url);
 }
 
+const GOOGLE_ERRORS: Record<string, string> = {
+  google: "Google sign-in didn't complete. Try again.",
+  "in-use": "That Google account is already used by another Kotasa account. Log in with it, or use a different Google account.",
+  link: "Couldn't connect that Google account. Try again.",
+};
+
 /**
- * Logged in with phone + PIN: add Google as a second way in. A signed, short-lived cookie tells the
+ * Google sign-in that stays on our own domain: the Google button on the page hands over an ID
+ * token, and Supabase checks it (with the raw nonce whose hash Google signed into the token).
+ * - "login": sign in as that Google account, then the same steps as /auth/callback.
+ * - "connect": add it to the logged-in account. A throwaway client checks the token, so the
+ *   current (PIN) session stays as it is whatever happens.
+ */
+export async function signInWithGoogleToken(token: string, nonce: string, intent: "login" | "connect", nextRaw: string): Promise<ActionState> {
+  if (typeof token !== "string" || typeof nonce !== "string" || !token || !nonce) return { error: GOOGLE_ERRORS.google };
+  const country = (await headers()).get("x-vercel-ip-country");
+
+  if (intent === "connect") {
+    const me = await requireProfile();
+    const probe = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await probe.auth.signInWithIdToken({ provider: "google", token, nonce });
+    if (error || !data.user) return { error: GOOGLE_ERRORS.google };
+    const outcome = await completeGoogleLogin(data.user, { next: "/me/settings?google=connected", linkTo: me.id, country });
+    await probe.auth.signOut();
+    if ("error" in outcome) return { error: GOOGLE_ERRORS[outcome.error] };
+    redirect(outcome.path);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithIdToken({ provider: "google", token, nonce });
+  if (error || !data.user) return { error: GOOGLE_ERRORS.google };
+  const outcome = await completeGoogleLogin(data.user, { next: safeNext(nextRaw), country });
+  if ("error" in outcome) {
+    await supabase.auth.signOut();
+    return { error: GOOGLE_ERRORS[outcome.error] };
+  }
+  redirect(outcome.path);
+}
+
+/**
+ * Logged in with phone + PIN: add Google as a second way in (redirect flow, used when the
+ * on-page Google button isn't set up). A signed, short-lived cookie tells the
  * auth callback which account the Google login belongs to.
  */
 export async function connectGoogle() {
