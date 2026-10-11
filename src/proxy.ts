@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC = ["/login", "/setup", "/auth", "/b/"];
+const PUBLIC = ["/login", "/signup", "/setup", "/auth", "/b/"];
 // Logged-out visitors to these are sent to /login?next=<path> and come back after signing in.
 const RETURN_TO = ["/join/", "/g/"];
 
 // Refreshes the Supabase session cookie and sends logged-out users to /login.
+// "/" is the landing page for logged-out visitors and opens Me for everyone else.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -31,7 +32,14 @@ export async function proxy(request: NextRequest) {
   if (PUBLIC.some((p) => path.startsWith(p))) return response;
 
   const { data } = await supabase.auth.getClaims();
-  if (!data?.claims?.sub) {
+  const loggedIn = Boolean(data?.claims?.sub);
+  if (path === "/") {
+    if (!loggedIn) return response;
+    const me = NextResponse.redirect(new URL("/me", request.url));
+    response.cookies.getAll().forEach((c) => me.cookies.set(c)); // keep a refreshed session
+    return me;
+  }
+  if (!loggedIn) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

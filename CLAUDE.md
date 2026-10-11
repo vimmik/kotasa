@@ -90,8 +90,13 @@ Product decisions Kavi made (don't change without asking):
 ## Architecture
 ```
 src/proxy.ts                 refresh Supabase session; logged-out -> /login (with ?next= for /g/ and /join/)
-                             (public: /login /setup /auth /b/)
-src/app/page.tsx             "/" -> /me
+                             (public: /login /signup /setup /auth /b/); "/" -> /me when logged in
+src/app/page.tsx             landing page for logged-out visitors (static). Logged-in people never see it.
+                             Server-action redirects skip the proxy, so after login redirect to /me, never "/"
+src/app/signup/              Google sign-up (shows "not open yet" when NEXT_PUBLIC_GOOGLE_LOGIN=off)
+src/app/welcome/             onboarding after a brand-new Google account (auth callback sends it here unless it
+                             came from an invite): name, currency, income -> monthly main budget / create group /
+                             join by link / skip. finishWelcome in actions/auth.ts
 src/app/me/                  Me: private personal budgets (docs/personal-budget-plan.md). Today (safe to spend,
                              quick add), add, spending (+[id] edit), budgets (+new, [id]), settings (currency,
                              income, payday, categories, per-group feed + category mapping)
@@ -109,7 +114,11 @@ src/app/g/[slug]/            one group (layout: requireMember(slug), group switc
   admin/                     packing, menu, orders, people (invites, approvals, roles), sms, settings;
                              tabs shown per permission (lib/admin-links.ts); /admin -> first allowed tab
 src/app/b/[token]/           PUBLIC read-only bill for one member (from SMS), noindex
-src/app/auth/callback/       Google: linked login -> done; else profile by verified email + claim invited members
+src/app/auth/callback/       Google: linked login -> done; else profile by verified email + claim invited members.
+                             A signed `kotasa_link` cookie (Me › Settings "Connect Google") links it to that profile
+                             Logins: Me › Settings "Sign-in" card sets number + PIN or connects Google. A Google
+                             sign-up that already had a phone account joins it with number + PIN (welcome step 1 or
+                             settings): mergeNewProfileInto (lib/accounts.ts), only while the new one has no Me data
 src/app/login, setup         setup = first-run only (first account + first group)
 src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,

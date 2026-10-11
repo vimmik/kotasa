@@ -169,6 +169,6 @@ period, on the first visit after it closes (the unique key makes it safe to run 
 | **A** ✅ | Schema, `personal_spend`, `/me` Today, budgets (all periods, rollover off/carry), quick add, auto-feed + per-group switch, categories, `/` → `/me`, nav | Kavi's group shares show up in Me and safe-to-spend is right across a month boundary |
 | **B** | Bills, goals, rollover to a goal, owed-to-you card | A bill paid and a goal funded change safe-to-spend correctly |
 | **C** | Insights, bank SMS paste, spending page filters | 8 real SL bank alerts parse correctly |
-| **S** | `/signup` (Google), onboarding, landing page. Email OTP + SMTP later | A new Google user signs up and lands in Me with a main budget |
+| **S** ✅ | `/signup` (Google), onboarding (`/welcome`), landing page at `/`. Email OTP + SMTP later | A new Google user signs up and lands in Me with a main budget |
 
 S runs next to A–C. Each phase ends with tsc + eslint + build and an e2e run in headless Edge like phase 1a.

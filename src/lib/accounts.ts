@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/org-config";
 import type { Invite, Member, Org, OrgKind, OrgSettings, Profile } from "@/lib/types";
@@ -42,10 +43,11 @@ export async function profileForVerifiedEmail(opts: {
   method: "google" | "email";
   /** Me currency for a new profile, from the visitor's country */
   currency?: string;
-}): Promise<Profile> {
+}): Promise<{ profile: Profile; created: boolean }> {
   const admin = createAdminClient();
   const email = opts.email.toLowerCase();
   let { data: profile } = await admin.from("profiles").select("*").eq("email", email).maybeSingle();
+  const created = !profile;
   if (!profile) {
     const { data, error } = await admin.from("profiles").insert({ full_name: opts.name, email, currency: opts.currency ?? "LKR" }).select("*").single();
     if (error || !data) throw new Error(error?.message ?? "Couldn't create your account");
@@ -56,7 +58,7 @@ export async function profileForVerifiedEmail(opts: {
     .upsert({ auth_user_id: opts.authUserId, profile_id: profile.id, method: opts.method }, { onConflict: "auth_user_id" });
   // Invited by email (in any group) and not linked yet: the verified email proves it's them.
   await admin.from("members").update({ profile_id: profile.id }).eq("email", email).is("profile_id", null);
-  return profile as Profile;
+  return { profile: profile as Profile, created };
 }
 
 export type InviteInfo = { invite: Invite; org: Org };
@@ -173,4 +175,89 @@ export async function groupsWithSmsOn(): Promise<{ org: Org; settings: OrgSettin
     org: orgs,
     settings: { ...settings, sms_fee: Number(settings.sms_fee) },
   }));
+}
+
+// ---------- Connecting logins ----------
+
+/** Cookie that carries a signed "link the next Google login to this profile" ticket (10 minutes). */
+export const LINK_COOKIE = "kotasa_link";
+
+const signTicket = (body: string) =>
+  createHmac("sha256", process.env.SUPABASE_SERVICE_ROLE_KEY!).update(`link:${body}`).digest("base64url");
+
+export function linkTicket(profileId: string) {
+  const body = `${profileId}.${Date.now() + 10 * 60_000}`;
+  return `${body}.${signTicket(body)}`;
+}
+
+/** The profile id in a valid, unexpired ticket, or null. */
+export function readLinkTicket(ticket: string | undefined): string | null {
+  const [id, exp, sig] = (ticket ?? "").split(".");
+  if (!id || !exp || !sig) return null;
+  const want = Buffer.from(signTicket(`${id}.${exp}`));
+  const got = Buffer.from(sig);
+  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  return Number(exp) > Date.now() ? id : null;
+}
+
+/** Add a verified Google login to an existing profile. Returns an error sentence, or null. */
+export async function linkGoogle(profileId: string, authUserId: string, email: string): Promise<string | null> {
+  const admin = createAdminClient();
+  email = email.toLowerCase();
+  const [{ data: google }, { data: owner }] = await Promise.all([
+    admin.from("profile_logins").select("auth_user_id").eq("profile_id", profileId).eq("method", "google").maybeSingle(),
+    admin.from("profiles").select("id").eq("email", email).maybeSingle(),
+  ]);
+  if (google && google.auth_user_id !== authUserId) return "Your account already has a different Google login.";
+  if (owner && owner.id !== profileId) return "That Google account is already used by another Kotasa account.";
+  const { error } = await admin
+    .from("profile_logins")
+    .upsert({ auth_user_id: authUserId, profile_id: profileId, method: "google" }, { onConflict: "auth_user_id" });
+  if (error) return "Couldn't connect Google. Try again.";
+  await admin.from("profiles").update({ email }).eq("id", profileId).is("email", null);
+  await admin.from("members").update({ profile_id: profileId }).eq("email", email).is("profile_id", null);
+  return null;
+}
+
+/**
+ * Someone signed up with Google, then shows (with the PIN) that they already had a Kotasa account
+ * on their mobile number. Move the new account's logins and groups onto the old one and delete the
+ * new one. Only for a new account with no Me entries or budgets yet, so nothing personal is lost.
+ * Returns an error sentence, or null.
+ */
+export async function mergeNewProfileInto(fromId: string, toId: string): Promise<string | null> {
+  if (fromId === toId) return null;
+  const admin = createAdminClient();
+  const [{ count: spent }, { count: budgets }, { data: fromLogins }, { data: toGoogle }, { data: from }] = await Promise.all([
+    admin.from("personal_expenses").select("id", { count: "exact", head: true }).eq("profile_id", fromId),
+    admin.from("personal_budgets").select("id", { count: "exact", head: true }).eq("profile_id", fromId),
+    admin.from("profile_logins").select("method").eq("profile_id", fromId),
+    admin.from("profile_logins").select("auth_user_id").eq("profile_id", toId).eq("method", "google").maybeSingle(),
+    admin.from("profiles").select("email").eq("id", fromId).single(),
+  ]);
+  if ((spent ?? 0) > 0 || (budgets ?? 0) > 0)
+    return "This Google account already has its own budget or spending in Me, so it can't be joined to another account.";
+  if (toGoogle && (fromLogins ?? []).some((l) => l.method === "google"))
+    return "That mobile account is already connected to a different Google account.";
+
+  // Groups: move each membership over, unless the old account is already in that group.
+  const [{ data: fromMembers }, { data: toMembers }] = await Promise.all([
+    admin.from("members").select("id, org_id").eq("profile_id", fromId),
+    admin.from("members").select("org_id").eq("profile_id", toId),
+  ]);
+  const toOrgs = new Set((toMembers ?? []).map((m) => m.org_id as string));
+  for (const m of fromMembers ?? []) {
+    await admin.from("members").update({ profile_id: toOrgs.has(m.org_id) ? null : toId }).eq("id", m.id);
+  }
+  await admin.from("orgs").update({ created_by: toId }).eq("created_by", fromId);
+
+  // Logins first, so a failure later never leaves a login pointing at nothing.
+  const { error } = await admin.from("profile_logins").update({ profile_id: toId }).eq("profile_id", fromId);
+  if (error) return "Couldn't connect the accounts. Try again.";
+  if (from?.email) {
+    await admin.from("profiles").update({ email: null }).eq("id", fromId);
+    await admin.from("profiles").update({ email: from.email }).eq("id", toId).is("email", null);
+  }
+  await admin.from("profiles").delete().eq("id", fromId); // its Me categories go with it
+  return null;
 }
