@@ -29,7 +29,7 @@ export default function SignupPage() {
     >
       {googleEnabled ? (
         <div className="space-y-5">
-          <GoogleButton label="Sign up with Google" />
+          <GoogleButton signup />
           <ul className="space-y-2.5 text-sm text-muted">
             {PERKS.map((p) => (
               <li key={p} className="flex gap-2.5">
@@ -38,6 +38,11 @@ export default function SignupPage() {
               </li>
             ))}
           </ul>
+          <p className="text-xs text-muted">
+            By signing up you agree to our{" "}
+            <Link href="/terms" className="font-medium text-brand underline-offset-2 hover:underline">terms</Link> and{" "}
+            <Link href="/privacy" className="font-medium text-brand underline-offset-2 hover:underline">privacy policy</Link>.
+          </p>
         </div>
       ) : (
         <p className="text-sm text-muted">
