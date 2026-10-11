@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Hourglass, SignOut } from "@phosphor-icons/react/ssr";
+import { ArrowRight, Hourglass, SignOut, Wallet } from "@phosphor-icons/react/ssr";
 import { getMemberships, requireProfile } from "@/lib/auth";
 import { ORG_KINDS } from "@/lib/types";
 import { logout } from "@/app/actions/auth";
@@ -42,6 +42,17 @@ async function Groups() {
         <p className="text-sm text-muted">Hi {profile.full_name.split(" ")[0]}</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Your groups</h1>
       </div>
+
+      <Link href="/me" className="card-link flex items-center gap-3">
+        <span className="inline-flex size-11 items-center justify-center rounded-[32%] bg-brand-soft text-brand-strong">
+          <Wallet size={20} weight="duotone" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Me</span>
+          <span className="text-xs text-muted">Your own budget and spending, private to you</span>
+        </span>
+        <ArrowRight size={18} className="text-muted" aria-hidden="true" />
+      </Link>
 
       {active.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2">

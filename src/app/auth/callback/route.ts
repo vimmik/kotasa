@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { profileForVerifiedEmail } from "@/lib/accounts";
+import { currencyForCountry } from "@/lib/currency";
 
 // Google sign-in lands here.
 // 1. Login already linked to a profile -> done.
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
       email,
       name: String(meta.full_name || meta.name || email.split("@")[0]),
       method: "google",
+      currency: currencyForCountry(request.headers.get("x-vercel-ip-country")),
     });
   } catch {
     await supabase.auth.signOut();
