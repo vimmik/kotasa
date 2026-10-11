@@ -51,25 +51,21 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext | nu
   if (!SLUG_RE.test(slug)) return null;
   const profile = await getCurrentProfile();
   if (!profile) return null;
+  // Memberships come with their group in one query, and the group layout reuses the same cached result.
+  const found = (await getMemberships(profile.id)).find((m) => m.org.slug === slug);
+  if (!found) return null;
+  const { member, org } = found;
   const admin = createAdminClient();
-  const { data: org } = await admin.from("orgs").select("*").eq("slug", slug).maybeSingle();
-  if (!org) return null;
-  const [{ data: member }, { data: settings }] = await Promise.all([
-    admin.from("members").select("*").eq("org_id", org.id).eq("profile_id", profile.id).maybeSingle(),
+  const [{ data: settings }, { data: role }] = await Promise.all([
     admin.from("org_settings").select("*").eq("org_id", org.id).single(),
+    admin.from("org_roles").select("permissions").eq("org_id", org.id).eq("key", member.role_key).single(),
   ]);
-  if (!member || !settings) return null;
-  const { data: role } = await admin
-    .from("org_roles")
-    .select("permissions")
-    .eq("org_id", org.id)
-    .eq("key", member.role_key)
-    .single();
+  if (!settings) return null;
   const perms = new Set(((role?.permissions ?? []) as string[]).filter(isPermission));
   return {
     profile,
-    member: member as Member,
-    org: org as Org,
+    member,
+    org,
     settings: { ...(settings as OrgSettings), sms_fee: Number(settings.sms_fee) },
     perms,
     base: `/g/${org.slug}`,
@@ -121,12 +117,12 @@ export async function hasAnyProfile(): Promise<boolean> {
 
 export type Membership = { member: Member; org: Org };
 
-/** Every group this profile belongs to (any status), newest first. */
-export async function getMemberships(profileId: string): Promise<Membership[]> {
+/** Every group this profile belongs to (any status), newest first. Cached per request. */
+export const getMemberships = cache(async (profileId: string): Promise<Membership[]> => {
   const { data } = await createAdminClient()
     .from("members")
     .select("*, orgs!members_org_id_fkey(*)") // named: meal_joins is a second members↔orgs path
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
   return ((data ?? []) as (Member & { orgs: Org })[]).map(({ orgs, ...member }) => ({ member, org: orgs }));
-}
+});

@@ -36,7 +36,11 @@ async function setOrder(
     return error?.message ?? null;
   }
   if (!UUID.test(o.menuItemId)) return "That item isn't on this day's menu";
-  const { data } = await db.select("menu_items").eq("id", o.menuItemId).maybeSingle();
+  // Independent reads: run together so each order costs one round trip less.
+  const [{ data }, payee] = await Promise.all([
+    db.select("menu_items").eq("id", o.menuItemId).maybeSingle(),
+    mealPayer(ctx, o.date, o.meal),
+  ]);
   const mi = data as MenuItem | null;
   if (!mi || mi.menu_date !== o.date || mi.meal !== o.meal) return "That item isn't on this day's menu";
   const { error } = await db.upsert(
@@ -49,7 +53,7 @@ async function setOrder(
       item_name: mi.name,
       unit_price: mi.price,
       qty,
-      payee_id: await mealPayer(ctx, o.date, o.meal),
+      payee_id: payee,
       created_by: ctx.member.id,
       updated_at: new Date().toISOString(),
     },
@@ -135,6 +139,7 @@ export async function saveDayOrders(_: ActionState, f: FormData): Promise<Action
 
   let changed = 0;
   const errors: string[] = [];
+  const edits: Parameters<typeof setOrder>[1][] = [];
   for (const [key, value] of f.entries()) {
     const m = /^item_(.+)_([0-9a-f-]{36})$/.exec(key);
     if (!m) continue;
@@ -145,7 +150,10 @@ export async function saveDayOrders(_: ActionState, f: FormData): Promise<Action
     const k = `${meal}_${personId}`;
     if (!itemId && !current.has(k)) continue;
     if (itemId && current.get(k) === `${itemId}|${qty}`) continue;
-    const err = await setOrder(ctx, { personId, date, meal, menuItemId: itemId, qty });
+    edits.push({ personId, date, meal, menuItemId: itemId, qty });
+  }
+  // Each edit touches a different (person, meal) row, so they can run in parallel.
+  for (const err of await Promise.all(edits.map((o) => setOrder(ctx, o)))) {
     if (err) errors.push(err);
     else changed++;
   }
