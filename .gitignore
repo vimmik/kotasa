@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Kilo Code worktrees
 .kilo/
+
+# Supabase CLI cache
+supabase/.temp/

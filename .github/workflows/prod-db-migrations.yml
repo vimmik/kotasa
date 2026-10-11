@@ -1,0 +1,41 @@
+# Applies new files in supabase/migrations to the production database.
+# A PR into main gets a dry run that lists what would be applied; a push to main applies them.
+# The dev database is migrated by hand while developing, never from here.
+# Secret PROD_DB_URL (environment "production"): the prod Supabase "Session pooler" connection
+# string (port 5432). GitHub runners have no IPv6, so the direct db.<ref>.supabase.co host won't work.
+name: Prod DB migrations
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: prod-db-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+
+      - name: Dry run
+        run: supabase db push --db-url "$PROD_DB_URL" --dry-run
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+
+      - name: Apply
+        if: github.event_name != 'pull_request'
+        run: supabase db push --db-url "$PROD_DB_URL" --yes
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}

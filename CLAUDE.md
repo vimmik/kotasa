@@ -213,6 +213,19 @@ Run typecheck + lint + build before saying something is done.
 `NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `CRON_SECRET`, `SMS_PROVIDER`, `TEXTLK_API_KEY`,
 `TEXTLK_SENDER_ID` (Notify.lk: `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID`). Template in `.env.example`.
 
+## Databases (since 2026-10-11)
+- **Prod**: Supabase `fmmsvvuxxctjovgksvqo` (official account). **QA**: `pxuahnbpuapsayariyxy`.
+  **Dev**: `itutrhdrqrbvqkysnvdd` (the original project, Kavi's personal account; `.env.local` points here).
+  Prod and QA were copied from dev on 2026-10-11, data and logins included.
+- Migrations: while developing, apply a new file in `supabase/migrations/` to dev by hand. Prod gets it
+  automatically: `.github/workflows/prod-db-migrations.yml` dry-runs on a PR into `main` and runs
+  `supabase db push` on a push to `main` (secret `PROD_DB_URL` in the GitHub environment `production`,
+  Session pooler URL). Only files not in prod's `supabase_migrations.schema_migrations` get applied.
+- So a migration must be safe to run on live data, and the app code that ships with it must work
+  before and after it runs (Vercel and the workflow deploy at the same time). Add things; don't
+  rename or drop in the same release as the code change.
+- Never write to the prod DB by hand without Kavi's explicit OK.
+
 ## Current status (2026-10-10)
 Done:
 - v2 app built; `next build`, tsc and eslint pass. Ledger/balance SQL tested on local Postgres
