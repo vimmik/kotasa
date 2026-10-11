@@ -90,7 +90,7 @@ export function AuthShell({
         <section className="stagger">
           <p className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-[11px] font-medium tracking-[0.14em] text-brand-strong uppercase">
             <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
-            Office expenses, settled weekly
+            Shared costs and your own budget
           </p>
           <h1 className="mt-5 text-[2.75rem] leading-[0.95] font-semibold tracking-[-0.045em] sm:text-6xl lg:text-7xl">
             Share it.
@@ -98,8 +98,8 @@ export function AuthShell({
             <span className="bg-linear-to-r from-brand via-brand to-amber bg-clip-text text-transparent">Settle it.</span>
           </h1>
           <p className="mt-5 max-w-md text-muted">
-            Breakfast orders, a ride to a client, the birthday cake. Anyone pays, {BRAND.name} keeps track, and everyone
-            gets one clear total on Friday.
+            Lunch orders, a ride to a client, a weekend trip. Anyone pays, {BRAND.name} keeps track, and your share
+            counts toward your own budget.
           </p>
           <Showcase />
         </section>

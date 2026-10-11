@@ -1,21 +1,30 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, hasAnyProfile, requireMemberFromForm, requireProfile } from "@/lib/auth";
-import { acceptInvite, createGroup, findInvite } from "@/lib/accounts";
-import { upsertPinLogin } from "@/lib/logins";
+import { acceptInvite, createGroup, findInvite, LINK_COOKIE, linkTicket, mergeNewProfileInto } from "@/lib/accounts";
+import { loginMethods, pinMatches, upsertPinLogin } from "@/lib/logins";
 import { orgDb } from "@/lib/org-db";
 import { isValidPin, normalizePhone } from "@/lib/phone";
-import { ORG_KINDS, type ActionState, type OrgKind } from "@/lib/types";
+import { getMe } from "@/lib/personal";
+import { isCurrency } from "@/lib/currency";
+import { meDb } from "@/lib/me-db";
+import { todayColombo } from "@/lib/time";
+import { ORG_KINDS, round2, type ActionState, type Org, type OrgKind, type Profile } from "@/lib/types";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+const MAX_AMOUNT = 99_999_999;
 
-/** Only same-site paths, so a crafted ?next= can't bounce people to another site. */
+/**
+ * Only same-site paths, so a crafted ?next= can't bounce people to another site. Defaults to /me,
+ * not "/": a redirect from a server action is rendered without going through src/proxy.ts, so "/"
+ * would show the logged-out landing page.
+ */
 function safeNext(v: unknown) {
   const s = String(v ?? "");
-  return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/";
+  return s.startsWith("/") && s !== "/" && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/me";
 }
 
 export async function loginWithPin(_: ActionState, form: FormData): Promise<ActionState> {
@@ -54,7 +63,10 @@ async function origin() {
 }
 
 export async function loginWithGoogle(form: FormData) {
-  const next = safeNext(form.get("next"));
+  await googleRedirect(safeNext(form.get("next")));
+}
+
+async function googleRedirect(next: string): Promise<never> {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -65,6 +77,42 @@ export async function loginWithGoogle(form: FormData) {
   });
   if (error || !data.url) redirect("/login?error=google");
   redirect(data.url);
+}
+
+/**
+ * Logged in with phone + PIN: add Google as a second way in. A signed, short-lived cookie tells the
+ * auth callback which account the Google login belongs to.
+ */
+export async function connectGoogle() {
+  const me = await requireProfile();
+  if ((await loginMethods(me.id)).has("google")) redirect("/me/settings");
+  (await cookies()).set(LINK_COOKIE, linkTicket(me.id), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/auth/callback",
+    maxAge: 600,
+  });
+  await googleRedirect("/me/settings?google=connected");
+}
+
+/**
+ * Signed up with Google but already had a Kotasa account on a mobile number: the PIN proves it's
+ * theirs, and the new account is folded into the old one (see mergeNewProfileInto).
+ */
+export async function connectPhoneAccount(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireProfile();
+  if (me.phone) return { error: "Your account already has a mobile number." };
+  const phone = normalizePhone(str(form, "phone"));
+  const pin = str(form, "pin");
+  if (!phone) return { error: "Enter a valid mobile number (07XXXXXXXX)" };
+  if (!isValidPin(pin)) return { error: "The PIN is 6 digits" };
+  const { data: old } = await createAdminClient().from("profiles").select("id").eq("phone", phone).maybeSingle();
+  if (!old || !(await pinMatches(old.id, pin)))
+    return { error: "That number and PIN don't match a Kotasa account. Check them and try again." };
+  const err = await mergeNewProfileInto(me.id, old.id);
+  if (err) return { error: err };
+  redirect(str(form, "back") === "settings" ? "/me/settings?phone=connected" : "/me");
 }
 
 export async function logout() {
@@ -114,26 +162,88 @@ export async function setMyPin(_: ActionState, form: FormData): Promise<ActionSt
     if (!phone) return { error: "Enter your mobile number (07XXXXXXXX)" };
     const admin = createAdminClient();
     const { data: taken } = await admin.from("profiles").select("id").eq("phone", phone).maybeSingle();
-    if (taken) return { error: "That number already has a Kotasa login" };
+    if (taken)
+      return { error: "That number already has a Kotasa account. If it's yours, connect it with its PIN in Me › Settings." };
     await admin.from("profiles").update({ phone }).eq("id", me.id);
   }
   const err = await upsertPinLogin(me.id, phone, pin);
   return err ? { error: err } : { ok: true, message: "PIN saved. You can now log in with your number." };
 }
 
-export async function createGroupAction(_: ActionState, form: FormData): Promise<ActionState> {
-  const me = await requireProfile();
+/** Checks a new group's name, kind and the per-person limit, then creates it. A string is an error. */
+async function newGroup(me: Profile, form: FormData): Promise<Org | string> {
   const name = str(form, "name");
   const kind = str(form, "kind") as OrgKind;
-  if (!name || name.length > 60) return { error: "Give the group a name (up to 60 characters)" };
-  if (!ORG_KINDS.some((k) => k.id === kind)) return { error: "Pick what kind of group it is" };
+  if (!name || name.length > 60) return "Give the group a name (up to 60 characters)";
+  if (!ORG_KINDS.some((k) => k.id === kind)) return "Pick what kind of group it is";
   const { count } = await createAdminClient()
     .from("orgs")
     .select("id", { count: "exact", head: true })
     .eq("created_by", me.id);
-  if ((count ?? 0) >= 20) return { error: "You've created 20 groups, which is the limit for now" };
-  const org = await createGroup(me, name, kind);
+  if ((count ?? 0) >= 20) return "You've created 20 groups, which is the limit for now";
+  return createGroup(me, name, kind);
+}
+
+export async function createGroupAction(_: ActionState, form: FormData): Promise<ActionState> {
+  const org = await newGroup(await requireProfile(), form);
+  if (typeof org === "string") return { error: org };
   redirect(`/g/${org.slug}`);
+}
+
+/**
+ * The last step of /welcome, after a new sign-up. Saves your name and money settings, then does
+ * the one thing you picked: set a monthly main budget, create a group, open an invite, or nothing.
+ */
+export async function finishWelcome(_: ActionState, form: FormData): Promise<ActionState> {
+  const { profile } = await getMe(); // also seeds your Me categories
+  const name = str(form, "full_name").slice(0, 60);
+  const currency = str(form, "currency");
+  const incomeRaw = str(form, "monthly_income").replace(/,/g, "");
+  const income = incomeRaw ? round2(Number(incomeRaw)) : null;
+  const choice = str(form, "choice");
+  if (!name) return { error: "Enter your name, so your groups know who you are" };
+  if (!isCurrency(currency)) return { error: "Pick a currency from the list" };
+  if (income !== null && !(income > 0 && income <= MAX_AMOUNT)) return { error: "Enter your take-home pay, or leave it empty" };
+
+  const db = meDb(profile.id);
+  if (choice === "budget") {
+    const amount = round2(Number(str(form, "budget").replace(/,/g, "")));
+    if (!(amount > 0) || amount > MAX_AMOUNT) return { error: "Enter how much you want to spend in a month" };
+    await db.updateProfile({ full_name: name, currency, monthly_income: income });
+    const { data: main } = await db.select("personal_budgets", "id").eq("archived", false).eq("is_main", true).limit(1);
+    if (!main?.length) {
+      const { error } = await db.insert("personal_budgets", {
+        name: "Monthly spending",
+        amount,
+        period: "month",
+        starts_on: todayColombo(),
+        is_main: true,
+      });
+      if (error) return { error: "Couldn't save your budget. Try again." };
+    }
+    redirect("/me");
+  }
+
+  if (choice === "group") {
+    // Group checks first, so a bad group name doesn't half-save the rest.
+    const kind = str(form, "kind");
+    if (!str(form, "name") || !ORG_KINDS.some((k) => k.id === kind)) return { error: "Give the group a name and pick what it's for" };
+    await db.updateProfile({ full_name: name, currency, monthly_income: income });
+    const org = await newGroup({ ...profile, full_name: name }, form);
+    if (typeof org === "string") return { error: org };
+    redirect(`/g/${org.slug}`);
+  }
+
+  if (choice === "join") {
+    // A whole invite link or just its code.
+    const code = str(form, "invite").toLowerCase().match(/(?:^|\/join\/)([0-9a-f]{16})(?:[/?#]|$)/)?.[1];
+    if (!code) return { error: "Paste the invite link someone sent you. It looks like …/join/ followed by 16 letters and numbers." };
+    await db.updateProfile({ full_name: name, currency, monthly_income: income });
+    redirect(`/join/${code}`);
+  }
+
+  await db.updateProfile({ full_name: name, currency, monthly_income: income });
+  redirect("/me");
 }
 
 export async function joinGroup(form: FormData) {

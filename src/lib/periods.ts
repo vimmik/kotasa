@@ -97,3 +97,16 @@ export function rangeLabel(period: Period, r: Range) {
   if (period === "year") return r.start.slice(0, 4);
   return `${o(r.start, { day: "numeric", month: "short" })} - ${o(r.end, { day: "numeric", month: "short" })}`;
 }
+
+/**
+ * Suggested main budget for a period from take-home pay (rule 10): income minus monthly bills and
+ * what goals need, rounded down. Bills and goals arrive in phase B, so for now it's the income.
+ */
+export function suggestBudget(monthlyIncome: number | null, period: Period): number | null {
+  if (!monthlyIncome || monthlyIncome <= 0) return null;
+  const perMonth = monthlyIncome;
+  const raw =
+    period === "day" ? perMonth / 30 : period === "week" ? (perMonth * 12) / 52 : period === "year" ? perMonth * 12 : perMonth;
+  const step = raw >= 100_000 ? 5000 : raw >= 10_000 ? 1000 : raw >= 1000 ? 100 : 10;
+  return Math.max(step, Math.floor(raw / step) * step);
+}

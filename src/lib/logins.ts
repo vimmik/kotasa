@@ -1,4 +1,5 @@
 import "server-only";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
 import { phoneToAuthEmail } from "@/lib/phone";
 
@@ -63,4 +64,28 @@ export async function deleteLogins(profileId: string) {
   const admin = createAdminClient();
   const { data } = await admin.from("profile_logins").select("auth_user_id").eq("profile_id", profileId);
   for (const l of data ?? []) await admin.auth.admin.deleteUser(l.auth_user_id);
+}
+
+/**
+ * True if this is the PIN of the profile's phone login. Checks it on a throwaway client, so the
+ * current session (e.g. a Google login that is connecting this account) is left alone.
+ */
+export async function pinMatches(profileId: string, pin: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: login } = await admin
+    .from("profile_logins")
+    .select("auth_user_id")
+    .eq("profile_id", profileId)
+    .eq("method", "pin")
+    .maybeSingle();
+  if (!login) return false;
+  const { data: u } = await admin.auth.admin.getUserById(login.auth_user_id);
+  if (!u.user?.email) return false;
+  const probe = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await probe.auth.signInWithPassword({ email: u.user.email, password: pin });
+  if (error) return false;
+  await probe.auth.signOut();
+  return true;
 }

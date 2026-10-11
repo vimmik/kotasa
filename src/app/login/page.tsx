@@ -25,11 +25,21 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Welcome back"
-      sub="Log in with your mobile number and PIN."
+      sub={googleEnabled ? "Log in with Google, or your mobile number and PIN." : "Log in with your mobile number and PIN."}
       footer={
-        <Suspense>
-          <SetupLink />
-        </Suspense>
+        <>
+          {googleEnabled && (
+            <p>
+              New to Kotasa?{" "}
+              <Link href="/signup" className="font-semibold text-brand underline-offset-2 hover:underline">
+                Create an account
+              </Link>
+            </p>
+          )}
+          <Suspense>
+            <SetupLink />
+          </Suspense>
+        </>
       }
     >
       <Suspense>
