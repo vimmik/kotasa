@@ -2,11 +2,16 @@ import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, ChatText } from "@phosphor-icons/react/ssr";
 import { CategoryIcon, Money } from "@/components/bits";
 import { fmtDay } from "@/lib/time";
-import type { LedgerRow } from "@/lib/types";
+import { PAID_PART, type LedgerRow } from "@/lib/types";
 
 function describe(row: LedgerRow, me: string, name: (id: string) => string) {
   const iOwe = row.debtor === me;
   const other = name(iOwe ? row.creditor : row.debtor);
+  // Co-payer rows: the main payer owes someone who paid part of the bill (see the ledger view).
+  if ((row.source === "expense" || row.source === "meal") && row.label.endsWith(PAID_PART)) {
+    const title = row.label.slice(0, -PAID_PART.length);
+    return { title, sub: iOwe ? `${other} paid part of the bill` : `You paid part of the bill · owed by ${other}` };
+  }
   switch (row.source) {
     case "expense":
       return { title: row.label, sub: iOwe ? `${other} paid · your share` : `You paid · ${other}'s share` };

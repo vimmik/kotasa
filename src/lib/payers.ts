@@ -19,10 +19,10 @@ export async function getExpenseCopayers(orgId: string, expenseIds: string[]): P
   return out;
 }
 
-/** What each person put in: co-payers their part, the main payer the rest. */
+/** What each person put in, main payer first: co-payers their part, the main payer the rest. */
 export function paidByEach(total: number, mainPayer: string, copayers: Copayer[]): Map<string, number> {
-  const paid = new Map(copayers.map((c) => [c.member_id, c.amount]));
-  paid.set(mainPayer, round2(total - copayers.reduce((s, c) => s + c.amount, 0)));
+  const paid = new Map([[mainPayer, round2(total - copayers.reduce((s, c) => s + c.amount, 0))]]);
+  for (const c of copayers) paid.set(c.member_id, c.amount);
   return paid;
 }
 

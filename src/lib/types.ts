@@ -131,6 +131,9 @@ export type Expense = {
 
 export type ExpenseShare = { expense_id: string; person_id: string; amount: number };
 
+/** Ledger labels of co-payer rows end with this (set in the ledger view, 20261015). */
+export const PAID_PART = " (paid part)";
+
 /** Someone who paid part of a bill. The main payer paid the rest, and owes them this amount. */
 export type Copayer = { member_id: string; amount: number };
 
