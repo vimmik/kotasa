@@ -302,6 +302,8 @@ export async function saveModules(_: ActionState, f: FormData): Promise<ActionSt
   const { error } = await orgDb(ctx.org.id).update("org_settings", {
     meals_enabled: f.get("meals_enabled") === "on",
     budgets_enabled: f.get("budgets_enabled") === "on",
+    // The column comes with the 20261015 migration; before it, leave it out.
+    ...(ctx.settings.simplify_debts !== undefined ? { simplify_debts: f.get("simplify_debts") === "on" } : {}),
     updated_at: new Date().toISOString(),
   });
   if (error) return { error: error.message };

@@ -1,14 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, UserPlus } from "@phosphor-icons/react/ssr";
+import { Check, Plus, UserPlus, X } from "@phosphor-icons/react/ssr";
 import { addGuest, saveExpense } from "@/app/actions/expenses";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { ICONS } from "@/components/bits";
 import { OrgField } from "@/components/org-field";
 import { splitEqually } from "@/lib/split";
 import { BRAND } from "@/lib/brand";
-import { rs, round2, type Budget, type Category, type Expense, type MemberWithLogin } from "@/lib/types";
+import { rs, round2, type Budget, type Category, type Copayer, type Expense, type MemberWithLogin } from "@/lib/types";
 
 type Props = {
   me: string;
@@ -19,10 +19,11 @@ type Props = {
   canAddGuests: boolean;
   expense?: Expense;
   shares?: Record<string, number>;
+  copayers?: Copayer[];
   defaultBudget?: string;
 };
 
-export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, defaultBudget }: Props) {
+export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget }: Props) {
   const [state, action] = useActionState(saveExpense, null);
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [category, setCategory] = useState(expense?.category ?? categories[0]?.key ?? "other");
@@ -33,6 +34,9 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
     Object.fromEntries(Object.entries(shares ?? {}).map(([k, v]) => [k, String(v)])),
   );
   const [filter, setFilter] = useState("");
+  const [others, setOthers] = useState<{ id: string; amount: string }[]>(
+    (copayers ?? []).map((c) => ({ id: c.member_id, amount: String(c.amount) })),
+  );
 
   const total = Number(amount) || 0;
   const ids = people.filter((p) => selected.has(p.id)).map((p) => p.id);
@@ -40,6 +44,13 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
     ids.length && total > 0 ? Object.fromEntries(splitEqually(total, ids).map((s) => [s.person_id, s.amount])) : {};
   const customSum = round2(ids.reduce((s, id) => s + (Number(custom[id]) || 0), 0));
   const left = round2(total - customSum);
+  const othersSum = round2(others.reduce((s, o) => s + (Number(o.amount) || 0), 0));
+  const mainPaid = round2(total - othersSum);
+  const nameOf = (id: string) => (id === me ? "You" : (people.find((p) => p.id === id)?.full_name ?? "?"));
+  const addPayer = () => {
+    const used = new Set([paidBy, ...others.map((o) => o.id)]);
+    setOthers((o) => [...o, { id: people.find((p) => !used.has(p.id))?.id ?? "", amount: "" }]);
+  };
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -107,7 +118,7 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div>
+            <div className="space-y-2">
               <label className="label" htmlFor="paid_by">Paid by</label>
               <select id="paid_by" name="paid_by" className="input" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
                 {people.map((p) => (
@@ -116,6 +127,53 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
                   </option>
                 ))}
               </select>
+              {others.map((o, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <select
+                    name="copayer_id"
+                    aria-label={`Other payer ${i + 1}`}
+                    className="input min-w-0 flex-1 py-1.5"
+                    value={o.id}
+                    onChange={(e) => setOthers((all) => all.map((x, j) => (j === i ? { ...x, id: e.target.value } : x)))}
+                  >
+                    <option value="" disabled>Who else paid?</option>
+                    {people
+                      .filter((p) => p.id === o.id || (p.id !== paidBy && !others.some((x) => x.id === p.id)))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.id === me ? `You (${p.full_name})` : p.full_name}</option>
+                      ))}
+                  </select>
+                  <input
+                    name="copayer_amount"
+                    inputMode="decimal"
+                    aria-label={`How much ${nameOf(o.id)} paid`}
+                    className="input w-28 py-1.5 text-right"
+                    placeholder="Rs."
+                    value={o.amount}
+                    onChange={(e) =>
+                      setOthers((all) => all.map((x, j) => (j === i ? { ...x, amount: e.target.value.replace(/[^\d.]/g, "") } : x)))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost size-9 shrink-0 p-0"
+                    aria-label={`Remove ${nameOf(o.id)} as a payer`}
+                    onClick={() => setOthers((all) => all.filter((_, j) => j !== i))}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+              {others.length > 0 && total > 0 && (
+                <p className={`text-xs font-semibold ${mainPaid > 0 ? "text-muted" : "text-danger"}`}>
+                  {mainPaid > 0 ? `${nameOf(paidBy)} paid the rest: ${rs(mainPaid)}` : "The other payers add up to the whole bill or more"}
+                </p>
+              )}
+              {others.length < people.length - 1 && (
+                <button type="button" className="flex items-center gap-1 text-xs font-semibold text-brand" onClick={addPayer}>
+                  <Plus size={13} aria-hidden="true" /> {others.length ? "Add another payer" : "Someone else paid part of it"}
+                </button>
+              )}
             </div>
             <div className={budgets.length ? "" : "hidden"}>
               <label className="label" htmlFor="budget_id">Budget (optional)</label>

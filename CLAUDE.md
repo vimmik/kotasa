@@ -175,6 +175,10 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   (not on approval invites). `syncMemberContacts(profile)` copies the account's phone/email onto its member rows
   whenever they change. Leftover duplicates show "Same as X?" on People; `merge_members(org, from, to)` RPC moves
   all history (shares summed, self-payments dropped) and deletes the guest row.
+- **Several payers:** `expense_copayers` (expense, member, amount) and `meal_copayers` (date, meal, member,
+  payer_id, amount). The main payer (`paid_by` / the meal's payer) is still owed every share; each co-payer is owed
+  their part by the main payer (extra ledger rows labelled "(paid part)"). `lib/payers.ts`: readCopayers (form rows
+  `copayer_id` + `copayer_amount`), paidByEach, getExpenseCopayers.
 - New groups: `create_org(...)` RPC (seeds roles, settings, categories, meal slots by kind, owner member).
 
 **Me (personal)**: `profiles` has `currency`, `monthly_income`, `payday`, `plan`. Tables `personal_categories`,
@@ -188,8 +192,10 @@ must differ (see getMe).
 **Ledger** (view `public.ledger`): each row = `debtor owes creditor amount` inside one `org_id`, with
 `source` (expense | meal | sms | settlement), `ref_id`, `label`, `entry_date`, `circle_id`.
 A settlement A→B is stored as **B owes A** so it cancels A's debt.
-`pair_balances(p_org, p_until, p_circle)` nets per pair → rows with positive amount. Never compute balances
-in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
+`pair_balances(p_org, p_until, p_circle)` nets per pair → rows with positive amount. `group_balances` (same args)
+is what `getPairs` calls: with `org_settings.simplify_debts` on (default, Settings › Modules "Fewest payments") and
+no circle, it matches everyone's net biggest-first so people pay the fewest others; else it returns pair_balances.
+Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
 
 ## Security rules (keep these)
 - RLS is enabled on every table with **no policies** → browser keys can read nothing. Advisor shows

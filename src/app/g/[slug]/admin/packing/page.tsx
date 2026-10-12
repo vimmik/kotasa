@@ -4,7 +4,7 @@ import { listMembers } from "@/lib/ledger";
 import { getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
 import { fmtDay, isValidDate, todayColombo } from "@/lib/time";
-import { rs, type Expense, type MenuItem, type Order } from "@/lib/types";
+import { rs, type Copayer, type Expense, type MenuItem, type Order } from "@/lib/types";
 import { mealModes } from "@/lib/meals";
 import { DateNav } from "@/components/week-nav";
 import { PrintButton } from "@/components/ui";
@@ -18,7 +18,7 @@ export default async function PackingList(props: PageProps<"/g/[slug]/admin/pack
   const sp = await props.searchParams;
   const date = typeof sp.date === "string" && isValidDate(sp.date) ? sp.date : todayColombo();
   const db = orgDb(ctx.org.id);
-  const [{ data: orders }, people, slots, { data: payerRows }, { data: sharedRows }, { data: joinRows }, { data: menuRows }] = await Promise.all([
+  const [{ data: orders }, people, slots, { data: payerRows }, { data: sharedRows }, { data: joinRows }, { data: menuRows }, { data: coRows }] = await Promise.all([
     db.select("orders").eq("order_date", date),
     listMembers(ctx.org.id, { includeInactive: true }),
     getMealSlots(ctx.org.id),
@@ -26,7 +26,12 @@ export default async function PackingList(props: PageProps<"/g/[slug]/admin/pack
     db.select("expenses", "*, expense_shares(person_id)").eq("meal_date", date).order("created_at"),
     db.select("meal_joins", "meal, member_id").eq("join_date", date),
     db.select("menu_items").eq("menu_date", date).eq("available", true).order("created_at"),
+    db.select("meal_copayers", "meal, member_id, amount").eq("pay_date", date), // null before its migration
   ]);
+  const copayersOf = (meal: string) =>
+    ((coRows ?? []) as (Copayer & { meal: string })[])
+      .filter((c) => c.meal === meal)
+      .map((c) => ({ member_id: c.member_id, amount: Number(c.amount) }));
   const mode = await mealModes(ctx.org.id, slots, date, date);
   const joins = (joinRows ?? []) as { meal: string; member_id: string }[];
   const menu = (menuRows ?? []) as MenuItem[];
@@ -155,13 +160,16 @@ export default async function PackingList(props: PageProps<"/g/[slug]/admin/pack
                 menu={menu.filter((m) => m.meal === meal).map((m) => ({ name: m.name, price: Number(m.price) }))}
               />
               <MealPayerForm
-                key={`${date}-${meal}-${payers.get(meal) ?? ""}`}
+                key={`${date}-${meal}-${payers.get(meal) ?? ""}-${JSON.stringify(copayersOf(meal))}`}
                 date={date}
                 meal={meal}
                 label={label}
                 payerId={payers.get(meal) ?? null}
+                collectorId={ctx.settings.collector_id}
                 collectorName={collectorName}
                 people={active}
+                copayers={copayersOf(meal)}
+                total={slotTotal}
               />
             </section>
           );

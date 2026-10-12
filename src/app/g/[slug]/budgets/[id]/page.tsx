@@ -5,6 +5,7 @@ import { can, requireMember, requireModule } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
+import { getExpenseCopayers, paidByEach } from "@/lib/payers";
 import { fmtDay } from "@/lib/time";
 import { rs, type Budget, type Expense } from "@/lib/types";
 import { CategoryIcon, EmptyState, PageHeader } from "@/components/bits";
@@ -33,8 +34,12 @@ export default async function BudgetPage(props: PageProps<"/g/[slug]/budgets/[id
   const canEdit = can(ctx, "budgets.manage") || budget.created_by === me.id;
 
   // Who paid how much into this budget
+  const copayers = await getExpenseCopayers(org.id, expenses.map((e) => e.id));
   const byPayer = new Map<string, number>();
-  expenses.forEach((e) => byPayer.set(e.paid_by, (byPayer.get(e.paid_by) ?? 0) + Number(e.amount)));
+  for (const e of expenses) {
+    for (const [pid, amt] of paidByEach(Number(e.amount), e.paid_by, copayers.get(e.id) ?? []))
+      byPayer.set(pid, (byPayer.get(pid) ?? 0) + amt);
+  }
 
   return (
     <div className="stagger space-y-5">

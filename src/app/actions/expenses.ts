@@ -7,13 +7,21 @@ import { orgDb } from "@/lib/org-db";
 import { normalizePhone } from "@/lib/phone";
 import { isValidDate } from "@/lib/time";
 import { splitEqually } from "@/lib/split";
+import { readCopayers } from "@/lib/payers";
 import { round2, type ActionState, type Expense } from "@/lib/types";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const UUID = /^[0-9a-f-]{36}$/;
 
-function canEdit(ctx: OrgContext, e: Pick<Expense, "created_by" | "paid_by">) {
-  return can(ctx, "expense.edit_any") || e.created_by === ctx.member.id || e.paid_by === ctx.member.id;
+/** The creator, anyone who paid (main payer or co-payer), or someone with expense.edit_any. */
+async function canEdit(ctx: OrgContext, id: string, e: Pick<Expense, "created_by" | "paid_by">) {
+  if (can(ctx, "expense.edit_any") || e.created_by === ctx.member.id || e.paid_by === ctx.member.id) return true;
+  const { data } = await orgDb(ctx.org.id)
+    .select("expense_copayers", "member_id")
+    .eq("expense_id", id)
+    .eq("member_id", ctx.member.id)
+    .maybeSingle();
+  return !!data;
 }
 
 export async function saveExpense(_: ActionState, f: FormData): Promise<ActionState> {
@@ -37,9 +45,11 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
   if (!isValidDate(date)) return { error: "Pick a date" };
   if (!participants.length) return { error: "Choose who shares this expense" };
   if (!UUID.test(paidBy)) return { error: "Pick who paid" };
+  const copayers = readCopayers(f, paidBy, amount);
+  if (!Array.isArray(copayers)) return copayers ?? { error: "Check who paid" };
 
   // Everyone involved must be an active member of THIS group.
-  const ids = [...new Set([paidBy, ...participants])];
+  const ids = [...new Set([paidBy, ...participants, ...copayers.map((c) => c.member_id)])];
   // The checks are independent reads, so they share one round trip.
   const [{ data: found }, { data: cat }, budget] = await Promise.all([
     db.select("members", "id, status").in("id", ids),
@@ -81,7 +91,7 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
     const { data: existing } = await db.select("expenses", "created_by, paid_by, category").eq("id", id).maybeSingle();
     if (!existing) return { error: "That expense no longer exists" };
     const ex = existing as Pick<Expense, "created_by" | "paid_by" | "category">;
-    if (!canEdit(ctx, ex)) return { error: "Only the person who added or paid this, or an admin, can edit it" };
+    if (!(await canEdit(ctx, id, ex))) return { error: "Only the person who added or paid this, or an admin, can edit it" };
     if ((cat as { archived: boolean }).archived && ex.category !== category) return { error: "That category is archived" };
     const { error } = await db.update("expenses", row).eq("id", id);
     if (error) return { error: error.message };
@@ -102,6 +112,13 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
   );
   if (sErr) return { error: sErr.message };
 
+  // Ignore a failed clear when there's nothing to save (the table may not exist yet).
+  const { error: cDel } = await db.delete("expense_copayers").eq("expense_id", expenseId!);
+  if (copayers.length) {
+    const cErr = cDel ?? (await db.insert("expense_copayers", copayers.map((c) => ({ ...c, expense_id: expenseId })))).error;
+    if (cErr) return { error: "Saved, but not the other payers. Edit the expense and add them again." };
+  }
+
   redirect(`${ctx.base}/expenses/${expenseId}`);
 }
 
@@ -111,7 +128,7 @@ export async function deleteExpense(f: FormData) {
   const db = orgDb(ctx.org.id);
   if (UUID.test(id)) {
     const { data: e } = await db.select("expenses", "created_by, paid_by").eq("id", id).maybeSingle();
-    if (e && canEdit(ctx, e as Pick<Expense, "created_by" | "paid_by">)) await db.delete("expenses").eq("id", id);
+    if (e && (await canEdit(ctx, id, e as Pick<Expense, "created_by" | "paid_by">))) await db.delete("expenses").eq("id", id);
   }
   redirect(`${ctx.base}/expenses`);
 }
