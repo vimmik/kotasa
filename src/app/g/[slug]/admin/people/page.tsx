@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { can, requireMember } from "@/lib/auth";
+import { duplicateGuests } from "@/lib/accounts";
 import { appUrl } from "@/lib/brand";
 import { getPairs, summarize } from "@/lib/ledger";
 import { getInvites, getRoles } from "@/lib/org-config";
@@ -26,6 +27,8 @@ export default async function PeoplePage(props: PageProps<"/g/[slug]/admin/peopl
   const inactive = all.filter((p) => p.status === "inactive");
   const withUrl = invites.map((i) => ({ ...i, url: `${appUrl()}/join/${i.code}` }));
   const claimUrl = new Map(withUrl.filter((i) => i.member_id).map((i) => [i.member_id!, i.url]));
+  const twins = canManage ? await duplicateGuests(ctx.org.id, all) : new Map<string, Member>();
+  const withLogin = all.filter((p) => p.registered && p.status !== "pending").map((p) => ({ id: p.id, name: p.full_name }));
 
   const row = (p: MemberWithLogin) => (
     <PersonRow
@@ -37,6 +40,8 @@ export default async function PeoplePage(props: PageProps<"/g/[slug]/admin/peopl
       canManage={canManage}
       canInvite={canInvite}
       claimUrl={claimUrl.get(p.id) ?? null}
+      twin={twins.get(p.id) ?? null}
+      mergeTargets={withLogin}
     />
   );
 

@@ -58,7 +58,8 @@ export async function profileForVerifiedEmail(opts: {
     .from("profile_logins")
     .upsert({ auth_user_id: opts.authUserId, profile_id: profile.id, method: opts.method }, { onConflict: "auth_user_id" });
   // Invited by email (in any group) and not linked yet: the verified email proves it's them.
-  await admin.from("members").update({ profile_id: profile.id }).eq("email", email).is("profile_id", null);
+  await claimGuestsByEmail(profile.id, email);
+  await syncMemberContacts(profile.id);
   return { profile: profile as Profile, created };
 }
 
@@ -83,7 +84,8 @@ export async function findInvite(code: string): Promise<InviteInfo | null> {
 /**
  * Join a group with an invite. Returns the member row.
  * - Already a member: active stays active; inactive comes back (pending if the invite needs approval).
- * - Claim invite (member_id set): the guest's history becomes this profile's.
+ * - Claim invite (member_id set), or a guest here with the same mobile number or email: the
+ *   guest's history becomes this profile's, so the person isn't in the group twice.
  */
 export async function acceptInvite(profile: Profile, info: InviteInfo): Promise<Member> {
   const admin = createAdminClient();
@@ -98,20 +100,24 @@ export async function acceptInvite(profile: Profile, info: InviteInfo): Promise<
     .maybeSingle();
 
   let member: Member;
+  let guest: Member | null = null;
   if (existing) {
     member = existing as Member;
     if (member.status === "inactive") {
       const { data } = await admin.from("members").update({ status }).eq("id", member.id).select("*").single();
       member = data as Member;
     }
-  } else if (invite.member_id) {
-    const { data: guest } = await admin
-      .from("members")
-      .select("*")
-      .eq("org_id", org.id)
-      .eq("id", invite.member_id)
-      .is("profile_id", null)
-      .maybeSingle();
+  } else if (invite.member_id || (guest = await guestFor(org.id, profile, invite))) {
+    if (invite.member_id) {
+      const { data } = await admin
+        .from("members")
+        .select("*")
+        .eq("org_id", org.id)
+        .eq("id", invite.member_id)
+        .is("profile_id", null)
+        .maybeSingle();
+      guest = data as Member | null;
+    }
     if (!guest) throw new Error("This invite was already used");
     const { data } = await admin
       .from("members")
@@ -127,7 +133,8 @@ export async function acceptInvite(profile: Profile, info: InviteInfo): Promise<
         org_id: org.id,
         profile_id: profile.id,
         full_name: profile.full_name,
-        email: profile.email,
+        email: await freeIn(org.id, "email", profile.email),
+        phone: await freeIn(org.id, "phone", profile.phone),
         role_key: invite.role_key,
         status,
         created_by: invite.created_by,
@@ -138,9 +145,108 @@ export async function acceptInvite(profile: Profile, info: InviteInfo): Promise<
     member = data as Member;
   }
 
+  await syncMemberContacts(profile.id);
   await admin.from("org_invites").update({ uses: invite.uses + 1 }).eq("id", invite.id);
   if (member.status === "active") await admin.from("profiles").update({ last_org_id: org.id }).eq("id", profile.id);
   return member;
+}
+
+// ---------- One person, one member per group ----------
+
+/** The value, if nobody in this group uses it yet (members.phone / email are unique per group). */
+async function freeIn(orgId: string, col: "phone" | "email", value: string | null): Promise<string | null> {
+  if (!value) return null;
+  const { data } = await createAdminClient().from("members").select("id").eq("org_id", orgId).eq(col, value).limit(1);
+  return data?.length ? null : value;
+}
+
+/**
+ * A guest (added by mobile or Gmail, no login yet) in this group who is this profile: same mobile
+ * number or same verified email. Joining then takes over the guest instead of adding a second row.
+ * Not for invites that need approval: a pending row can be rejected (deleted), and a guest's
+ * history must never go with it.
+ */
+async function guestFor(orgId: string, profile: Profile, invite: Invite): Promise<Member | null> {
+  if (invite.needs_approval) return null;
+  for (const col of ["email", "phone"] as const) {
+    if (!profile[col]) continue;
+    const { data } = await createAdminClient()
+      .from("members")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq(col, profile[col])
+      .is("profile_id", null)
+      .maybeSingle();
+    if (data) return data as Member;
+  }
+  return null;
+}
+
+/** Guests invited by this (verified) email become this profile, in groups it isn't in yet. */
+async function claimGuestsByEmail(profileId: string, email: string) {
+  const admin = createAdminClient();
+  const [{ data: guests }, { data: mine }] = await Promise.all([
+    admin.from("members").select("id, org_id").eq("email", email).is("profile_id", null),
+    admin.from("members").select("org_id").eq("profile_id", profileId),
+  ]);
+  const inOrg = new Set((mine ?? []).map((m) => m.org_id as string));
+  for (const g of guests ?? []) {
+    if (!inOrg.has(g.org_id)) await admin.from("members").update({ profile_id: profileId }).eq("id", g.id);
+  }
+}
+
+/**
+ * Copy the account's mobile number and email onto its member rows that have none, so People
+ * shows them and the weekly SMS reaches them. Skips a group where someone else already has the
+ * value: that is usually an old guest row of the same person, which an admin merges (People).
+ */
+export async function syncMemberContacts(profileId: string) {
+  const admin = createAdminClient();
+  const [{ data: p }, { data: rows }] = await Promise.all([
+    admin.from("profiles").select("phone, email").eq("id", profileId).single(),
+    admin.from("members").select("id, org_id, phone, email").eq("profile_id", profileId),
+  ]);
+  if (!p) return;
+  for (const m of rows ?? []) {
+    const patch: Record<string, string> = {};
+    if (!m.phone && (await freeIn(m.org_id, "phone", p.phone))) patch.phone = p.phone!;
+    if (!m.email && (await freeIn(m.org_id, "email", p.email))) patch.email = p.email!;
+    if (Object.keys(patch).length) await admin.from("members").update(patch).eq("id", m.id);
+  }
+}
+
+/** Move all of one member's history onto another in the same group and delete the first. */
+export async function mergeMembers(orgId: string, fromId: string, toId: string): Promise<string | null> {
+  const { error } = await createAdminClient().rpc("merge_members", { p_org: orgId, p_from: fromId, p_to: toId });
+  if (!error) return null;
+  if (error.message.includes("same day")) return "Both have a meal order for the same day. Remove one of them first, then merge.";
+  return "Couldn't merge them. Try again.";
+}
+
+/**
+ * Guests in a group who look like a member with an account: same mobile number or email, on the
+ * member row or on their account. Shown on People so an admin can merge the two.
+ */
+export async function duplicateGuests(orgId: string, members: Member[]): Promise<Map<string, Member>> {
+  const guests = members.filter((m) => !m.profile_id && (m.phone || m.email));
+  const withLogin = members.filter((m) => m.profile_id);
+  const found = new Map<string, Member>();
+  if (!guests.length || !withLogin.length) return found;
+  const { data } = await createAdminClient()
+    .from("profiles")
+    .select("id, phone, email")
+    .in("id", withLogin.map((m) => m.profile_id!));
+  const profiles = new Map((data ?? []).map((p) => [p.id as string, p as { phone: string | null; email: string | null }]));
+  for (const g of guests) {
+    const match = withLogin.find((m) => {
+      const p = profiles.get(m.profile_id!);
+      const phones = [m.phone, p?.phone].filter(Boolean);
+      const emails = [m.email, p?.email].filter(Boolean);
+      return (g.phone && phones.includes(g.phone)) || (g.email && emails.includes(g.email));
+    });
+    if (match) found.set(g.id, match);
+  }
+  return found;
 }
 
 /** Remember the group someone opened last, so "/" can send them back there. Server-only. */
@@ -216,7 +322,8 @@ export async function linkGoogle(profileId: string, authUserId: string, email: s
     .upsert({ auth_user_id: authUserId, profile_id: profileId, method: "google" }, { onConflict: "auth_user_id" });
   if (error) return "Couldn't connect Google. Try again.";
   await admin.from("profiles").update({ email }).eq("id", profileId).is("email", null);
-  await admin.from("members").update({ profile_id: profileId }).eq("email", email).is("profile_id", null);
+  await claimGuestsByEmail(profileId, email);
+  await syncMemberContacts(profileId);
   return null;
 }
 
@@ -244,11 +351,16 @@ export async function mergeNewProfileInto(fromId: string, toId: string): Promise
   // Groups: move each membership over, unless the old account is already in that group.
   const [{ data: fromMembers }, { data: toMembers }] = await Promise.all([
     admin.from("members").select("id, org_id").eq("profile_id", fromId),
-    admin.from("members").select("org_id").eq("profile_id", toId),
+    admin.from("members").select("id, org_id").eq("profile_id", toId),
   ]);
-  const toOrgs = new Set((toMembers ?? []).map((m) => m.org_id as string));
+  const toMember = new Map((toMembers ?? []).map((m) => [m.org_id as string, m.id as string]));
   for (const m of fromMembers ?? []) {
-    await admin.from("members").update({ profile_id: toOrgs.has(m.org_id) ? null : toId }).eq("id", m.id);
+    const keep = toMember.get(m.org_id);
+    // Already in that group with the old account: one person, so fold the new row into it.
+    if (keep) {
+      const err = await mergeMembers(m.org_id, m.id, keep);
+      if (err) return err;
+    } else await admin.from("members").update({ profile_id: toId }).eq("id", m.id);
   }
   await admin.from("orgs").update({ created_by: toId }).eq("created_by", fromId);
 
@@ -260,6 +372,7 @@ export async function mergeNewProfileInto(fromId: string, toId: string): Promise
     await admin.from("profiles").update({ email: from.email }).eq("id", toId).is("email", null);
   }
   await admin.from("profiles").delete().eq("id", fromId); // its Me categories go with it
+  await syncMemberContacts(toId);
   return null;
 }
 

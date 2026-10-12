@@ -5,7 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, hasAnyProfile, requireMemberFromForm, requireProfile } from "@/lib/auth";
-import { acceptInvite, completeGoogleLogin, createGroup, findInvite, LINK_COOKIE, linkTicket, mergeNewProfileInto } from "@/lib/accounts";
+import {
+  acceptInvite,
+  completeGoogleLogin,
+  createGroup,
+  findInvite,
+  LINK_COOKIE,
+  linkTicket,
+  mergeNewProfileInto,
+  syncMemberContacts,
+} from "@/lib/accounts";
 import { loginMethods, pinMatches, upsertPinLogin } from "@/lib/logins";
 import { orgDb } from "@/lib/org-db";
 import { isValidPin, normalizePhone } from "@/lib/phone";
@@ -210,6 +219,7 @@ export async function setMyPin(_: ActionState, form: FormData): Promise<ActionSt
     await admin.from("profiles").update({ phone }).eq("id", me.id);
   }
   const err = await upsertPinLogin(me.id, phone, pin);
+  if (!me.phone) await syncMemberContacts(me.id);
   return err ? { error: err } : { ok: true, message: "PIN saved. You can now log in with your number." };
 }
 

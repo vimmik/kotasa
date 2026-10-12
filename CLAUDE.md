@@ -171,6 +171,10 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   per week). Their person columns keep the old names (`person_id`, `paid_by`, `from_person`…) but point
   at `members`, through **composite FKs `(org_id, x) -> members (org_id, id)`**, so the DB itself rejects
   any cross-group reference.
+- **One person, one member row per group.** Joining by invite takes over a guest with the same mobile/email
+  (not on approval invites). `syncMemberContacts(profile)` copies the account's phone/email onto its member rows
+  whenever they change. Leftover duplicates show "Same as X?" on People; `merge_members(org, from, to)` RPC moves
+  all history (shares summed, self-payments dropped) and deletes the guest row.
 - New groups: `create_org(...)` RPC (seeds roles, settings, categories, meal slots by kind, owner member).
 
 **Me (personal)**: `profiles` has `currency`, `monthly_income`, `payday`, `plan`. Tables `personal_categories`,
