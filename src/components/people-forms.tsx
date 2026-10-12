@@ -2,13 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { LinkSimple, Trash } from "@phosphor-icons/react/ssr";
-import { approveMember, createInvite, rejectMember, revokeInvite, saveMember } from "@/app/actions/admin";
+import { approveMember, createInvite, mergeMember, rejectMember, revokeInvite, saveMember } from "@/app/actions/admin";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
 import { CopyLink } from "@/components/account-forms";
 import { Avatar, Money } from "@/components/bits";
 import { displayPhone } from "@/lib/phone";
-import type { Invite, MemberWithLogin, Role } from "@/lib/types";
+import type { Invite, Member, MemberWithLogin, Role } from "@/lib/types";
 
 const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
 
@@ -89,6 +89,8 @@ export function PersonRow({
   canManage,
   canInvite,
   claimUrl,
+  twin,
+  mergeTargets,
 }: {
   p: MemberWithLogin;
   net: number;
@@ -98,8 +100,13 @@ export function PersonRow({
   canInvite: boolean;
   /** an open "claim" invite for this guest, if any */
   claimUrl: string | null;
+  /** a member with a login who looks like this guest (same number or email) */
+  twin: Member | null;
+  /** people with a login this guest can be merged into */
+  mergeTargets: { id: string; name: string }[];
 }) {
   const [state, action] = useActionState(saveMember, null);
+  const [mergeState, mergeAction] = useActionState(mergeMember, null);
   const [inviteState, inviteAction] = useActionState(createInvite, null);
   const [open, setOpen] = useState(false);
   const role = roles.find((r) => r.key === p.role_key);
@@ -117,6 +124,7 @@ export function PersonRow({
             {p.role_key !== "member" && <span className="pill bg-amber-soft text-amber-ink">{role?.label ?? p.role_key}</span>}
             {p.registered ? <span className="pill bg-brand-soft text-brand-strong">App</span> : <span className="pill bg-surface-2 text-muted">SMS only</span>}
             {p.status === "inactive" && <span className="pill bg-danger-soft text-danger">Inactive</span>}
+            {canManage && twin && <span className="pill bg-amber-soft text-amber-ink">Same as {twin.full_name}?</span>}
           </p>
         </div>
         <Money value={net} signed className="hidden text-sm sm:inline" />
@@ -153,6 +161,43 @@ export function PersonRow({
               </div>
               <FormMessage state={state} />
             </ActionForm>
+          )}
+          {!p.registered && canManage && mergeTargets.length > 0 && (
+            <form
+              action={mergeAction}
+              className="space-y-2 border-t border-line pt-3"
+              onSubmit={(e) => {
+                if (!confirm(`Merge ${p.full_name} into the selected person? Their balance and history move over. This can't be undone.`))
+                  e.preventDefault();
+              }}
+            >
+              <OrgField />
+              <input type="hidden" name="id" value={p.id} />
+              <p className="text-xs text-muted">
+                {twin
+                  ? `${twin.full_name} has the same mobile number or email. If it's the same person, merge them: ${p.full_name.split(" ")[0]}'s balance and history move to ${twin.full_name}.`
+                  : `Already in the group with the app under another name? Merge ${p.full_name.split(" ")[0]} into them: the balance and history move over.`}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor={`merge-${p.id}`}>
+                  Merge into
+                </label>
+                <select id={`merge-${p.id}`} name="into" defaultValue={twin?.id ?? ""} className="input w-auto py-1.5" required>
+                  <option value="" disabled>
+                    Same person as…
+                  </option>
+                  {mergeTargets.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <SubmitButton className="btn-ghost" pendingText="Merging…">
+                  Merge
+                </SubmitButton>
+              </div>
+              <FormMessage state={mergeState} />
+            </form>
           )}
           {!p.registered && canInvite && (
             <div className="space-y-2 border-t border-line pt-3">

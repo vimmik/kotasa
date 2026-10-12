@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { can, requireMemberFromForm, type OrgContext } from "@/lib/auth";
+import { mergeMembers, syncMemberContacts } from "@/lib/accounts";
 import { profileOwnedByOrg, upsertPinLogin } from "@/lib/logins";
 import { keyify } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
@@ -139,7 +140,9 @@ async function setPinFor(ctx: OrgContext, member: Member, pin: string): Promise<
     const phone = p?.phone ?? member.phone;
     if (!phone) return "add their mobile number first";
     if (!p?.phone) await admin.from("profiles").update({ phone }).eq("id", member.profile_id);
-    return upsertPinLogin(member.profile_id, phone, pin);
+    const err = await upsertPinLogin(member.profile_id, phone, pin);
+    if (!err) await syncMemberContacts(member.profile_id);
+    return err;
   }
   if (!member.phone) return "a PIN login needs a mobile number";
   const { data: taken } = await admin.from("profiles").select("id").eq("phone", member.phone).maybeSingle();
@@ -157,6 +160,31 @@ async function setPinFor(ctx: OrgContext, member: Member, pin: string): Promise<
   }
   await orgDb(ctx.org.id).update("members", { profile_id: profile.id }).eq("id", member.id);
   return null;
+}
+
+/**
+ * The same person is in the group twice: an old guest row (added by mobile, no login) and the
+ * row they got when they joined with an account. Move the guest's history onto the account row.
+ */
+export async function mergeMember(_: ActionState, f: FormData): Promise<ActionState> {
+  const ctx = await requireMemberFromForm(f);
+  if (!can(ctx, "members.manage")) return denied("merge people");
+  const fromId = str(f, "id");
+  const intoId = str(f, "into");
+  if (!UUID.test(fromId) || !UUID.test(intoId) || fromId === intoId) return { error: "Pick who this person really is" };
+  const db = orgDb(ctx.org.id);
+  const [{ data: guest }, { data: into }] = await Promise.all([
+    db.select("members", "id, profile_id, status").eq("id", fromId).maybeSingle(),
+    db.select("members", "id, profile_id, status").eq("id", intoId).maybeSingle(),
+  ]);
+  if (!guest || !into) return { error: "That person is gone" };
+  if (guest.profile_id) return { error: "Only someone without a login can be merged into another person" };
+  if (!into.profile_id) return { error: "Merge into the person who signs in with the app" };
+  if (into.status === "pending") return { error: "Approve them first, then merge" };
+  const err = await mergeMembers(ctx.org.id, fromId, intoId);
+  if (err) return { error: err };
+  refresh();
+  return { ok: true, message: "Merged" };
 }
 
 /** Approve someone who joined with an approval-required invite. */
