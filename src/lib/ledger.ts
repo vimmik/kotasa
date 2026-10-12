@@ -14,13 +14,21 @@ export async function listMembers(orgId: string, opts: { includeInactive?: boole
   return ((data ?? []) as Member[]).map((m) => ({ ...m, registered: !!m.profile_id }));
 }
 
-/** Net who-owes-whom inside one group, up to and including `until` (YYYY-MM-DD). */
+/**
+ * Who should pay whom inside one group, up to and including `until` (YYYY-MM-DD). With the
+ * group's "fewest payments" setting on, these are simplified transfers (group_balances), not
+ * the person-to-person balances, so someone may be asked to pay a person they never shared with.
+ */
 export async function getPairs(orgId: string, opts: { until?: string; circleId?: string } = {}): Promise<Pair[]> {
-  const { data, error } = await createAdminClient().rpc("pair_balances", {
+  const args = {
     p_org: orgId,
     ...(opts.until ? { p_until: opts.until } : {}),
     ...(opts.circleId ? { p_circle: opts.circleId } : {}),
-  });
+  };
+  const db = createAdminClient();
+  let { data, error } = await db.rpc("group_balances", args);
+  // Before the 20261015 migration has run, only pair_balances exists.
+  if (error?.code === "PGRST202") ({ data, error } = await db.rpc("pair_balances", args));
   if (error) throw new Error(error.message);
   return ((data ?? []) as Pair[]).map((p) => ({ ...p, amount: Number(p.amount) }));
 }

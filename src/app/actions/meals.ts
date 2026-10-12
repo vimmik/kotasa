@@ -6,6 +6,7 @@ import { orgDb } from "@/lib/org-db";
 import { isPastCutoff, isValidDate } from "@/lib/time";
 import { splitEqually } from "@/lib/split";
 import { isPooled, mealJoins, mealModes, resplitMeal } from "@/lib/meals";
+import { readCopayers } from "@/lib/payers";
 import { round2, type ActionState, type MealSlot, type MenuItem } from "@/lib/types";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -212,6 +213,15 @@ export async function setMealPayer(_: ActionState, f: FormData): Promise<ActionS
   const memberId = str(f, "member_id");
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
   const db = orgDb(ctx.org.id);
+  const payee = memberId || ctx.settings.collector_id;
+  const copayers = readCopayers(f, payee, null);
+  if (!Array.isArray(copayers)) return copayers ?? { error: "Check who paid" };
+  if (copayers.length && !payee) return { error: "Pick the main payer first, then who else paid part of it" };
+  if (copayers.length) {
+    const ids = copayers.map((c) => c.member_id);
+    const { data: found } = await db.select("members", "id").in("id", ids).eq("status", "active");
+    if ((found ?? []).length !== ids.length) return { error: "Someone who paid isn't an active member of this group" };
+  }
   if (memberId) {
     if (!UUID.test(memberId)) return { error: "Choose who paid" };
     const { data: m } = await db.select("members", "id").eq("id", memberId).eq("status", "active").maybeSingle();
@@ -225,11 +235,18 @@ export async function setMealPayer(_: ActionState, f: FormData): Promise<ActionS
   } else {
     await db.delete("meal_payers").eq("pay_date", date).eq("meal", slot.key);
   }
-  const payee = memberId || ctx.settings.collector_id;
   const { error } = await db.update("orders", { payee_id: payee }).eq("order_date", date).eq("meal", slot.key);
   if (error) return { error: error.message };
   // Shared items for this meal were paid by the same person.
   if (payee) await db.update("expenses", { paid_by: payee }).eq("meal_date", date).eq("meal", slot.key);
+  // Others who chipped in: the main payer owes them their part. A failed clear with nothing to
+  // save is ignored (the table may not exist yet).
+  const { error: cDel } = await db.delete("meal_copayers").eq("pay_date", date).eq("meal", slot.key);
+  if (copayers.length) {
+    const rows = copayers.map((c) => ({ ...c, pay_date: date, meal: slot.key, payer_id: payee }));
+    const cErr = cDel ?? (await db.insert("meal_copayers", rows)).error;
+    if (cErr) return { error: "Saved the payer, but not the others who paid. Try again." };
+  }
   refresh();
   return { ok: true, message: "Saved" };
 }

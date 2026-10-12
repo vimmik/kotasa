@@ -50,6 +50,14 @@ export function ModulesForm({ s }: { s: OrgSettings }) {
       <div className="grid gap-2 sm:grid-cols-2">
         <Toggle name="meals_enabled" label="Meals" hint="Daily menu, orders with cutoffs, packing list" on={s.meals_enabled} />
         <Toggle name="budgets_enabled" label="Budgets" hint="Pots with an optional limit, like a trip fund" on={s.budgets_enabled} />
+        {s.simplify_debts !== undefined && (
+          <Toggle
+            name="simplify_debts"
+            label="Fewest payments"
+            hint="Settle up with as few payments as possible. Someone may be asked to pay a person they didn't share with directly; the totals stay the same."
+            on={s.simplify_debts}
+          />
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton className="btn-ghost">Save modules</SubmitButton>
