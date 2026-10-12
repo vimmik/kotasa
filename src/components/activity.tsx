@@ -79,7 +79,7 @@ export function ActivityList({
           </div>
         );
         return (
-          <li key={`${r.source}-${r.ref_id}-${r.debtor}`}>
+          <li key={`${r.source}-${r.ref_id}-${r.debtor}-${r.creditor}`}>
             {r.source === "expense" && base ? (
               <Link href={`${base}/expenses/${r.ref_id}`} className="-mx-2 block rounded-xl px-2 hover:bg-surface-2">
                 {body}

@@ -4,6 +4,7 @@ import { can, requireMember } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
+import { getExpenseCopayers, paidByEach } from "@/lib/payers";
 import { addDays, fmtDay, fmtWeek, isValidDate, todayColombo, weekStart } from "@/lib/time";
 import { rs, type Expense, type ExpenseShare } from "@/lib/types";
 import { CategoryIcon, EmptyState, PageHeader } from "@/components/bits";
@@ -31,7 +32,9 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
   const names = new Map(people.map((p) => [p.id, p.full_name.split(" ")[0]]));
   type Row = Expense & { expense_shares: Pick<ExpenseShare, "person_id" | "amount">[] };
   let rows = (data ?? []) as Row[];
-  if (mine) rows = rows.filter((e) => e.paid_by === me.id || e.expense_shares.some((s) => s.person_id === me.id));
+  const copayers = await getExpenseCopayers(org.id, rows.map((e) => e.id));
+  const paidOf = (e: Row) => paidByEach(Number(e.amount), e.paid_by, copayers.get(e.id) ?? []);
+  if (mine) rows = rows.filter((e) => paidOf(e).has(me.id) || e.expense_shares.some((s) => s.person_id === me.id));
   const total = rows.reduce((s, e) => s + Number(e.amount), 0);
 
   const tab = (val: "mine" | "all", label: string) => (
@@ -70,13 +73,16 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
       ) : (
         <ul className="card divide-y divide-line py-1">
           {rows.map((e) => {
-            const myShare = e.expense_shares.find((s) => s.person_id === me.id)?.amount ?? 0;
-            const iPaid = e.paid_by === me.id;
-            const mineLine = iPaid
-              ? { text: `you lent ${rs(Number(e.amount) - Number(myShare))}`, cls: "text-brand" }
-              : myShare
-                ? { text: `you owe ${rs(myShare)}`, cls: "text-danger" }
-                : { text: "not involved", cls: "text-muted" };
+            const myShare = Number(e.expense_shares.find((s) => s.person_id === me.id)?.amount ?? 0);
+            const paid = paidOf(e);
+            const net = (paid.get(me.id) ?? 0) - myShare;
+            const payers = [...paid.keys()].map((id) => (id === me.id ? "You" : names.get(id)));
+            const mineLine =
+              net > 0.004
+                ? { text: `you lent ${rs(net)}`, cls: "text-brand" }
+                : net < -0.004
+                  ? { text: `you owe ${rs(-net)}`, cls: "text-danger" }
+                  : { text: paid.has(me.id) || myShare ? "settled" : "not involved", cls: "text-muted" };
             return (
               <li key={e.id}>
                 <Link href={`${base}/expenses/${e.id}`} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-surface-2">
@@ -84,7 +90,7 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{e.title}</p>
                     <p className="truncate text-xs text-muted">
-                      {fmtDay(e.expense_date)} · {iPaid ? "You" : names.get(e.paid_by)} paid {rs(e.amount)}
+                      {fmtDay(e.expense_date)} · {payers.length > 2 ? `${payers[0]} + ${payers.length - 1}` : payers.join(" + ")} paid {rs(e.amount)}
                     </p>
                   </div>
                   <span className={`text-right text-xs font-semibold ${mineLine.cls}`}>{mineLine.text}</span>

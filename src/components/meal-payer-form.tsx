@@ -1,43 +1,104 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Minus, Plus } from "@phosphor-icons/react/ssr";
+import { Minus, Plus, X } from "@phosphor-icons/react/ssr";
 import { addSharedMealItem, setMealMode, setMealPayer } from "@/app/actions/meals";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
-import { rs } from "@/lib/types";
+import { rs, type Copayer } from "@/lib/types";
 
-/** "Who paid the vendor for this meal today". Blank = the group's collector. */
+/**
+ * "Who paid the vendor for this meal today". Blank = the group's collector. Others can have
+ * paid part of the bill; the main payer then owes them that part.
+ */
 export function MealPayerForm({
   date,
   meal,
   label,
   payerId,
+  collectorId,
   collectorName,
   people,
+  copayers = [],
+  total,
 }: {
   date: string;
   meal: string;
   label: string;
   payerId: string | null;
+  collectorId: string | null;
   collectorName: string | null;
   people: { id: string; full_name: string }[];
+  copayers?: Copayer[];
+  /** this meal's bill so far (orders + shared items) */
+  total: number;
 }) {
   const [state, action] = useActionState(setMealPayer, null);
+  const [main, setMain] = useState(payerId ?? "");
+  const [others, setOthers] = useState(copayers.map((c) => ({ id: c.member_id, amount: String(c.amount) })));
   const id = `payer-${meal}`;
+  const mainId = main || collectorId;
+  const mainName = people.find((p) => p.id === mainId)?.full_name ?? collectorName ?? "The payer";
+  const rest = Math.round((total - others.reduce((s, o) => s + (Number(o.amount) || 0), 0)) * 100) / 100;
+  const free = (keep: string) => people.filter((p) => p.id === keep || (p.id !== mainId && !others.some((o) => o.id === p.id)));
   return (
-    <ActionForm action={action} className="mt-3 space-y-1 print:hidden">
+    <ActionForm action={action} className="mt-3 space-y-2 print:hidden">
       <OrgField />
       <input type="hidden" name="date" value={date} />
       <input type="hidden" name="meal" value={meal} />
       <label className="label" htmlFor={id}>{label} paid by</label>
-      <div className="flex gap-2">
-        <select id={id} name="member_id" defaultValue={payerId ?? ""} className="input min-w-0 flex-1 py-1.5">
-          <option value="">{collectorName ? `${collectorName} (collector)` : "The collector"}</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>{p.full_name}</option>
-          ))}
-        </select>
+      <select id={id} name="member_id" value={main} onChange={(e) => setMain(e.target.value)} className="input w-full py-1.5">
+        <option value="">{collectorName ? `${collectorName} (collector)` : "The collector"}</option>
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>{p.full_name}</option>
+        ))}
+      </select>
+      {others.map((o, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <select
+            name="copayer_id"
+            aria-label={`Other payer ${i + 1}`}
+            className="input min-w-0 flex-1 py-1.5"
+            value={o.id}
+            onChange={(e) => setOthers((all) => all.map((x, j) => (j === i ? { ...x, id: e.target.value } : x)))}
+          >
+            <option value="" disabled>Who else paid?</option>
+            {free(o.id).map((p) => (
+              <option key={p.id} value={p.id}>{p.full_name}</option>
+            ))}
+          </select>
+          <input
+            name="copayer_amount"
+            inputMode="decimal"
+            aria-label="How much they paid"
+            className="input w-24 py-1.5 text-right"
+            placeholder="Rs."
+            value={o.amount}
+            onChange={(e) => setOthers((all) => all.map((x, j) => (j === i ? { ...x, amount: e.target.value.replace(/[^\d.]/g, "") } : x)))}
+          />
+          <button
+            type="button"
+            className="btn-ghost size-9 shrink-0 p-0"
+            aria-label="Remove this payer"
+            onClick={() => setOthers((all) => all.filter((_, j) => j !== i))}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      {others.length > 0 && total > 0 && (
+        <p className={`text-xs font-semibold ${rest > 0 ? "text-muted" : "text-danger"}`}>
+          {rest > 0 ? `${mainName} paid the rest: ${rs(rest)}` : `The others paid more than the ${rs(total)} bill`}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs font-semibold text-brand"
+          onClick={() => setOthers((o) => [...o, { id: free("")[0]?.id ?? "", amount: "" }])}
+        >
+          <Plus size={13} aria-hidden="true" /> {others.length ? "Add another payer" : "Someone else paid part of it"}
+        </button>
         <SubmitButton className="btn-ghost px-3" pendingText="…">Save</SubmitButton>
       </div>
       {state?.error && <FormMessage state={state} />}

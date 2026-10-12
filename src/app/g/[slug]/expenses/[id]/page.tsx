@@ -5,6 +5,7 @@ import { can, requireMember } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
+import { getExpenseCopayers, paidByEach } from "@/lib/payers";
 import { fmtDay, todayColombo } from "@/lib/time";
 import { rs, type Expense, type ExpenseShare } from "@/lib/types";
 import { deleteExpense } from "@/app/actions/expenses";
@@ -20,19 +21,24 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
 
   const db = orgDb(org.id);
-  const [{ data: e }, { data: shareRows }, people, categories] = await Promise.all([
+  const [{ data: e }, { data: shareRows }, people, categories, copayerMap] = await Promise.all([
     db.select("expenses").eq("id", id).maybeSingle(),
     db.select("expense_shares").eq("expense_id", id),
     listMembers(org.id, { includeInactive: true }),
     getCategories(org.id, { includeArchived: true }),
+    getExpenseCopayers(org.id, [id]),
   ]);
   if (!e) notFound();
   const expense = e as Expense;
   const shares = (shareRows ?? []) as ExpenseShare[];
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const cat = categories.find((c) => c.key === expense.category);
-  const canEdit = can(ctx, "expense.edit_any") || expense.created_by === me.id || expense.paid_by === me.id;
-  const myShare = shares.find((s) => s.person_id === me.id)?.amount ?? 0;
+  const copayers = copayerMap.get(id) ?? [];
+  const paid = paidByEach(Number(expense.amount), expense.paid_by, copayers);
+  const canEdit = can(ctx, "expense.edit_any") || expense.created_by === me.id || paid.has(me.id);
+  const myShare = Number(shares.find((s) => s.person_id === me.id)?.amount ?? 0);
+  const myNet = (paid.get(me.id) ?? 0) - myShare;
+  const who = (pid: string) => (pid === me.id ? "You" : names.get(pid));
 
   let budgetName: string | null = null;
   if (expense.budget_id) {
@@ -54,6 +60,7 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           canAddGuests={can(ctx, "members.invite")}
           expense={expense}
           shares={Object.fromEntries(shares.map((s) => [s.person_id, Number(s.amount)]))}
+          copayers={copayers}
         />
       </div>
     );
@@ -81,11 +88,27 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           <p className="text-2xl font-semibold tabular-nums">{rs(expense.amount)}</p>
         </div>
         <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">
-          <b>{expense.paid_by === me.id ? "You" : names.get(expense.paid_by)}</b> paid ·{" "}
-          {expense.split_type === "equal" ? "split equally" : "custom split"}
-          {myShare > 0 && expense.paid_by !== me.id && (
+          {copayers.length ? (
+            [...paid].map(([pid, amt], i) => (
+              <span key={pid}>
+                {i > 0 && ", "}
+                <b>{who(pid)}</b> paid {rs(amt)}
+              </span>
+            ))
+          ) : (
             <>
-              {" · "}your share <b className="text-danger">{rs(myShare)}</b>
+              <b>{who(expense.paid_by)}</b> paid
+            </>
+          )}{" "}
+          · {expense.split_type === "equal" ? "split equally" : "custom split"}
+          {myNet < -0.004 && (
+            <>
+              {" · "}you owe <b className="text-danger">{rs(-myNet)}</b>
+            </>
+          )}
+          {myNet > 0.004 && (
+            <>
+              {" · "}you get back <b className="text-brand">{rs(myNet)}</b>
             </>
           )}
         </p>
@@ -100,8 +123,8 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
               <Avatar name={names.get(s.person_id) ?? "?"} size={32} />
               <span className="flex-1 font-medium">{s.person_id === me.id ? "You" : names.get(s.person_id)}</span>
               <span className="text-sm tabular-nums">
-                {s.person_id === expense.paid_by ? (
-                  <span className="text-muted">{rs(s.amount)} · paid</span>
+                {paid.has(s.person_id) ? (
+                  <span className="text-muted">{rs(s.amount)} · paid {rs(paid.get(s.person_id)!)}</span>
                 ) : (
                   <b>{rs(s.amount)}</b>
                 )}

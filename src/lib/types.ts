@@ -50,6 +50,8 @@ export type OrgSettings = {
   sms_fee: number;
   sms_monthly_cap: number;
   sms_template: string;
+  /** settle with the fewest payments (group_balances); missing before the 20261015 migration */
+  simplify_debts?: boolean;
 };
 
 /** Someone inside one group. profile_id null = SMS-only guest. */
@@ -128,6 +130,9 @@ export type Expense = {
 };
 
 export type ExpenseShare = { expense_id: string; person_id: string; amount: number };
+
+/** Someone who paid part of a bill. The main payer paid the rest, and owes them this amount. */
+export type Copayer = { member_id: string; amount: number };
 
 export type MenuItem = {
   id: string;

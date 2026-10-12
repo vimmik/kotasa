@@ -40,7 +40,7 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
       body: "Paid for something the group shares? Add it and pick who it's for.",
       steps: [
         "Tap Add expense, enter what it was and how much.",
-        "Choose who paid. It doesn't have to be you.",
+        "Choose who paid. It doesn't have to be you. Paid together? Tap Someone else paid part of it and add how much each person put in.",
         "Tick the people it's for. Split equally (the default) or type a custom amount per person.",
         "Save. Everyone's balance updates straight away.",
       ],
@@ -243,8 +243,15 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
         <h2 className="text-sm font-medium text-muted">Questions</h2>
         <div className="card divide-y divide-line py-1">
           <Faq q="Who can edit or delete an expense?">
-            The person who added it, the person who paid, and anyone whose role allows editing any expense.
+            The person who added it, anyone who paid for it, and anyone whose role allows editing any expense.
           </Faq>
+          {settings.simplify_debts !== false && (
+            <Faq q="Why do I owe someone I didn't share with?">
+              This group settles with the fewest payments. Kotasa adds up what everyone is owed and owes, then tells each
+              person who to pay so the fewest payments clear everything. Your total stays the same; only who you pay
+              changes. Admins can turn this off in Settings.
+            </Faq>
+          )}
           <Faq q="I paid someone outside the app. What now?">
             Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>
