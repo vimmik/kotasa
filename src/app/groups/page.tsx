@@ -9,6 +9,7 @@ import { LogoMark } from "@/components/brand";
 import { Avatar, Loading } from "@/components/bits";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CreateGroupForm } from "./create-group-form";
+import { AcrossGroups } from "./across-groups";
 
 export const metadata: Metadata = { title: "Your groups" };
 
@@ -70,6 +71,8 @@ async function Groups() {
           ))}
         </ul>
       )}
+
+      {active.length > 0 && <AcrossGroups profileId={profile.id} />}
 
       {pending.length > 0 && (
         <section className="card space-y-2">
