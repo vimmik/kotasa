@@ -255,6 +255,10 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
           <Faq q="I paid someone outside the app. What now?">
             Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>
+          <Faq q="I share several groups with the same person. Where's the total?">
+            Open Your groups (the group switcher). Across all your groups lists everyone you owe or who owes you, with
+            each group&apos;s amount added up into one total. Payments are still recorded inside each group.
+          </Faq>
           <Faq q="What if I don't pay this week?">
             Nothing breaks. What you still owe carries over and shows up in next week&apos;s total.
           </Faq>

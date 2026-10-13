@@ -101,7 +101,8 @@ src/app/welcome/             onboarding after a brand-new Google account (auth c
 src/app/me/                  Me: private personal budgets (docs/personal-budget-plan.md). Today (safe to spend,
                              quick add), add, spending (+[id] edit), budgets (+new, [id]), settings (currency,
                              income, payday, categories, per-group feed + category mapping)
-src/app/groups/              your groups, pending joins, create a group
+src/app/groups/              your groups, pending joins, create a group, "Across all your groups" (per-person net
+                             over every shared group, lib/across.ts; same person = profile, else guest mobile/email)
 src/app/join/[code]/         accept an invite link
 src/app/g/[slug]/            one group (layout: requireMember(slug), group switcher, nav by modules/perms)
   page.tsx                   home: net balance, you owe / owes you, today's meals, activity
