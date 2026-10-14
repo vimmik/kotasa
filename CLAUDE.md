@@ -195,7 +195,8 @@ must differ (see getMe).
 A settlement A→B is stored as **B owes A** so it cancels A's debt.
 `pair_balances(p_org, p_until, p_circle)` nets per pair → rows with positive amount. `group_balances` (same args)
 is what `getPairs` calls: with `org_settings.simplify_debts` on (default, Settings › Modules "Fewest payments") and
-no circle, it matches everyone's net biggest-first so people pay the fewest others; else it returns pair_balances.
+no circle, it starts from pair_balances and shortens chains (X owes Y owes Z -> X pays Z) only when X and Z share a
+ledger line or Z is the collector, so nobody is told to pay a stranger (20261016); else it returns pair_balances.
 Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
 
 ## Security rules (keep these)

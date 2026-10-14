@@ -16,8 +16,8 @@ export async function listMembers(orgId: string, opts: { includeInactive?: boole
 
 /**
  * Who should pay whom inside one group, up to and including `until` (YYYY-MM-DD). With the
- * group's "fewest payments" setting on, these are simplified transfers (group_balances), not
- * the person-to-person balances, so someone may be asked to pay a person they never shared with.
+ * group's "fewest payments" setting on, these are simplified transfers (group_balances): chains
+ * are shortened, but only to someone the payer shared with in this group, or the collector.
  */
 export async function getPairs(orgId: string, opts: { until?: string; circleId?: string } = {}): Promise<Pair[]> {
   const args = {
