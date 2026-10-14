@@ -246,10 +246,10 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             The person who added it, anyone who paid for it, and anyone whose role allows editing any expense.
           </Faq>
           {settings.simplify_debts !== false && (
-            <Faq q="Why do I owe someone I didn't share with?">
-              This group settles with the fewest payments. Kotasa adds up what everyone is owed and owes, then tells each
-              person who to pay so the fewest payments clear everything. Your total stays the same; only who you pay
-              changes. Admins can turn this off in Settings.
+            <Faq q="Why do I pay someone other than who paid for my share?">
+              This group settles with fewer payments. If you owe someone who owes another person, Kotasa may ask you to pay
+              that person directly, but only someone you have shared with in this group, or the group&apos;s collector. Your
+              total stays the same; only who you pay changes. Admins can turn this off in Settings.
             </Faq>
           )}
           <Faq q="I paid someone outside the app. What now?">
