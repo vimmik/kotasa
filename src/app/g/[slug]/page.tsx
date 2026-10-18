@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ArrowRight, BookOpenText, CheckCircle, ForkKnife } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
+import { closedThrough } from "@/lib/closing";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { expenseIconMap, getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
-import { todayColombo } from "@/lib/time";
+import { fmtDay, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
 import { Avatar, EmptyState, Money } from "@/components/bits";
@@ -18,7 +19,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const sp = await props.searchParams;
   const today = todayColombo();
 
-  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }] = await Promise.all([
+  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     getLedgerFor(org.id, me.id, { limit: 12 }),
@@ -29,6 +30,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
     meals
       ? orgDb(org.id).select("meal_joins", "meal").eq("member_id", me.id).eq("join_date", today)
       : Promise.resolve({ data: [] as { meal: string }[] }),
+    closedThrough(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const slotLabel = new Map(slots.map((s) => [s.key, s.label]));
@@ -66,7 +68,10 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
               </p>
             </>
           )}
-          <p className="mt-1 text-xs text-muted">Net across everyone in {org.name}</p>
+          <p className="mt-1 text-xs text-muted">
+            Net across everyone in {org.name}
+            {through && ` · closed up to ${fmtDay(through)}`}
+          </p>
         </div>
         <div className="relative grid grid-cols-2 border-t border-line text-sm">
           <div className="border-r border-line px-5 py-4">

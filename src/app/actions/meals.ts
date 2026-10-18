@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { can, requireMemberFromForm, type OrgContext } from "@/lib/auth";
+import { closedError } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
 import { isPastCutoff, isValidDate } from "@/lib/time";
 import { splitEqually } from "@/lib/split";
@@ -70,6 +71,8 @@ export async function saveMyOrder(_: ActionState, f: FormData): Promise<ActionSt
   const slot = await getSlot(ctx.org.id, str(f, "meal"));
   const menuItemId = str(f, "menu_item_id") || null;
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   if (isPastCutoff(date, slot.cutoff)) return { error: `Orders closed at ${slot.cutoff.slice(0, 5)}` };
   if (await isPooled(ctx.org.id, slot, date)) return { error: `${slot.label} is a shared bill that day. Join it instead` };
   if (menuItemId) {
@@ -96,6 +99,8 @@ export async function joinMeal(_: ActionState, f: FormData): Promise<ActionState
   const date = str(f, "date");
   const slot = await getSlot(ctx.org.id, str(f, "meal"));
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   if (isPastCutoff(date, slot.cutoff)) return { error: `Closed at ${slot.cutoff.slice(0, 5)}. Ask the admin to add you` };
   if (!(await isPooled(ctx.org.id, slot, date))) return { error: `${slot.label} isn't a shared bill that day` };
   const db = orgDb(ctx.org.id);
@@ -121,6 +126,8 @@ export async function saveDayOrders(_: ActionState, f: FormData): Promise<Action
   if (!can(ctx, "meals.order_for_others")) return { error: "Your role can't change other people's orders" };
   const date = str(f, "date");
   if (!isValidDate(date)) return { error: "Invalid date" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   const db = orgDb(ctx.org.id);
   const [{ data: existing }, { data: members }, { data: slots }] = await Promise.all([
     db.select("orders", "person_id, meal, menu_item_id, qty").eq("order_date", date),
@@ -189,6 +196,8 @@ export async function setMealMode(_: ActionState, f: FormData): Promise<ActionSt
   const date = str(f, "date");
   const slot = await getSlot(ctx.org.id, str(f, "meal"));
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   const pooled = str(f, "pooled") === "1";
   const { error } = await orgDb(ctx.org.id).upsert(
     "meal_days",
@@ -212,6 +221,8 @@ export async function setMealPayer(_: ActionState, f: FormData): Promise<ActionS
   const slot = await getSlot(ctx.org.id, str(f, "meal"));
   const memberId = str(f, "member_id");
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   const db = orgDb(ctx.org.id);
   const payee = memberId || ctx.settings.collector_id;
   const copayers = readCopayers(f, payee, null);
@@ -275,6 +286,8 @@ export async function addSharedMealItem(_: ActionState, f: FormData): Promise<Ac
   const amount = round2(Number(str(f, "amount")));
   const people = [...new Set(f.getAll("participants").map(String).filter((x) => UUID.test(x)))];
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   if (!title) return { error: "Say what it was, like “Family pack + 2 Coke”" };
   if (!(amount > 0)) return { error: "Enter the amount" };
   const pooled = await isPooled(ctx.org.id, slot, date);
@@ -342,6 +355,8 @@ export async function addMenuItem(_: ActionState, f: FormData): Promise<ActionSt
   const name = str(f, "name");
   const price = round2(Number(str(f, "price")));
   if (!isValidDate(date) || !slot) return { error: "Invalid request" };
+  const closed = await closedError(ctx.org.id, date);
+  if (closed) return { error: closed };
   if (!name) return { error: "Enter the item name" };
   if (!(price >= 0) || str(f, "price") === "") return { error: "Enter a price" };
   const { error } = await orgDb(ctx.org.id).insert("menu_items", { menu_date: date, meal: slot.key, name, price });
@@ -358,6 +373,10 @@ export async function updateMenuItem(_: ActionState, f: FormData): Promise<Actio
   const price = round2(Number(str(f, "price")));
   if (!UUID.test(id) || !name || !(price >= 0)) return { error: "Check the name and price" };
   const db = orgDb(ctx.org.id);
+  const { data: item } = await db.select("menu_items", "menu_date").eq("id", id).maybeSingle();
+  if (!item) return { error: "That item is gone. Refresh the page." };
+  const closed = await closedError(ctx.org.id, (item as { menu_date: string }).menu_date);
+  if (closed) return { error: closed };
   const { error } = await db.update("menu_items", { name, price, available: f.get("available") === "on" }).eq("id", id);
   if (error) return { error: error.message };
   // A corrected price also fixes that day's orders for the item

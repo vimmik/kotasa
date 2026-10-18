@@ -22,6 +22,8 @@ type OrgTable =
   | "meal_joins"
   | "settlements"
   | "sms_logs"
+  | "org_closings"
+  | "org_closing_balances"
   | "ledger";
 
 type Row = Record<string, unknown>;

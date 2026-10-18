@@ -229,8 +229,8 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
               <p className="font-semibold">The Admin area</p>
               <p className="text-muted">
                 Add people and invite links, approve joins and set roles. Set the daily menu and meal cutoffs, see the
-                packing list, fix anyone&apos;s order, preview and send the weekly SMS, and turn modules on or off in
-                Settings. You only see the tabs your role allows.
+                packing list, fix anyone&apos;s order, preview and send the weekly SMS, close the books so settled weeks
+                stop changing, and turn modules on or off in Settings. You only see the tabs your role allows.
               </p>
             </div>
             <ArrowRight size={18} className="mt-1 shrink-0 text-muted" aria-hidden="true" />
@@ -252,6 +252,11 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
               total stays the same; only who you pay changes. Admins can turn this off in Settings.
             </Faq>
           )}
+          <Faq q="Why can't I change an old expense or payment?">
+            The group&apos;s books are closed up to a date. Balances up to then are frozen as they were, so a payment or a
+            late change can&apos;t move what other people were told. Anything after that date works as usual. An owner can
+            reopen the latest close if something needs fixing.
+          </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>

@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { can, requireMemberFromForm } from "@/lib/auth";
+import { closedError } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
 import { isValidDate, todayColombo } from "@/lib/time";
 import { round2, type ActionState } from "@/lib/types";
@@ -23,6 +24,8 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
   if (!UUID.test(from) || !UUID.test(to) || from === to) return { error: "Pick who paid whom" };
   if (!(amount > 0)) return { error: "Enter the amount" };
   if (!isValidDate(paidOn)) return { error: "Pick a date" };
+  const closed = await closedError(ctx.org.id, paidOn);
+  if (closed) return { error: closed };
   if (!can(ctx, "settle.record_any") && me !== from && me !== to)
     return { error: "You can only record payments you made or received" };
 
@@ -47,8 +50,9 @@ export async function deleteSettlement(f: FormData) {
   const id = str(f, "id");
   if (!UUID.test(id)) return;
   const db = orgDb(ctx.org.id);
-  const { data: s } = await db.select("settlements", "recorded_by").eq("id", id).maybeSingle();
-  if (s && (can(ctx, "settle.record_any") || (s as { recorded_by: string }).recorded_by === ctx.member.id)) {
+  const { data } = await db.select("settlements", "recorded_by, paid_on").eq("id", id).maybeSingle();
+  const s = data as { recorded_by: string; paid_on: string } | null;
+  if (s && !(await closedError(ctx.org.id, s.paid_on)) && (can(ctx, "settle.record_any") || s.recorded_by === ctx.member.id)) {
     await db.delete("settlements").eq("id", id);
   }
   refresh();
