@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 import { can, requireMember } from "@/lib/auth";
+import { closedThrough } from "@/lib/closing";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
@@ -21,12 +22,13 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
 
   const db = orgDb(org.id);
-  const [{ data: e }, { data: shareRows }, people, categories, copayerMap] = await Promise.all([
+  const [{ data: e }, { data: shareRows }, people, categories, copayerMap, through] = await Promise.all([
     db.select("expenses").eq("id", id).maybeSingle(),
     db.select("expense_shares").eq("expense_id", id),
     listMembers(org.id, { includeInactive: true }),
     getCategories(org.id, { includeArchived: true }),
     getExpenseCopayers(org.id, [id]),
+    closedThrough(org.id),
   ]);
   if (!e) notFound();
   const expense = e as Expense;
@@ -35,7 +37,8 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
   const cat = categories.find((c) => c.key === expense.category);
   const copayers = copayerMap.get(id) ?? [];
   const paid = paidByEach(Number(expense.amount), expense.paid_by, copayers);
-  const canEdit = can(ctx, "expense.edit_any") || expense.created_by === me.id || paid.has(me.id);
+  const locked = !!through && expense.expense_date <= through;
+  const canEdit = !locked && (can(ctx, "expense.edit_any") || expense.created_by === me.id || paid.has(me.id));
   const myShare = Number(shares.find((s) => s.person_id === me.id)?.amount ?? 0);
   const myNet = (paid.get(me.id) ?? 0) - myShare;
   const who = (pid: string) => (pid === me.id ? "You" : names.get(pid));
@@ -160,7 +163,10 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           </>
         )}
       </div>
-      <p className="text-xs text-muted">Added by {names.get(expense.created_by ?? "") ?? "someone"}.</p>
+      <p className="text-xs text-muted">
+        Added by {names.get(expense.created_by ?? "") ?? "someone"}.
+        {locked && ` The books are closed up to ${fmtDay(through!)}, so it can't be changed.`}
+      </p>
     </div>
   );
 }

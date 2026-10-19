@@ -284,6 +284,17 @@ export async function groupsWithSmsOn(): Promise<{ org: Org; settings: OrgSettin
   }));
 }
 
+/** For the weekly cron: groups that close their books every billing day. */
+export async function groupsWithAutoClose(): Promise<{ org: Org; settings: OrgSettings }[]> {
+  // Before the 20261018 migration the column doesn't exist: no group closes by itself.
+  const { data, error } = await createAdminClient().from("org_settings").select("*, orgs(*)").eq("auto_close", true);
+  if (error) return [];
+  return ((data ?? []) as (OrgSettings & { orgs: Org })[]).map(({ orgs, ...settings }) => ({
+    org: orgs,
+    settings: { ...settings, sms_fee: Number(settings.sms_fee) },
+  }));
+}
+
 // ---------- Connecting logins ----------
 
 /** Cookie that carries a signed "link the next Google login to this profile" ticket (10 minutes). */

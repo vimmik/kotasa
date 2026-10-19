@@ -52,6 +52,8 @@ export type OrgSettings = {
   sms_template: string;
   /** settle with the fewest payments (group_balances); missing before the 20261015 migration */
   simplify_debts?: boolean;
+  /** close the books every billing day, through the day before; missing before the 20261018 migration */
+  auto_close?: boolean;
 };
 
 /** Someone inside one group. profile_id null = SMS-only guest. */

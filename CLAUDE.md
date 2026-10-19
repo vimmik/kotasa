@@ -199,6 +199,15 @@ no circle, it starts from pair_balances and shortens chains (X owes Y owes Z -> 
 ledger line or Z is the collector, so nobody is told to pay a stranger (20261016); else it returns pair_balances.
 Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
 
+**Closing the books** (20261018, Admin › Close books, permission `books.close`): `close_books(org, through, by)` stores
+`group_balances` at that date in `org_closings` + `org_closing_balances` (frozen, never recalculated). With a close in
+force, `group_balances` = frozen balances, minus payments since between the same two people (they pay the frozen
+amount first, so they change nobody else's), plus everything else since (simplified on its own), netted per pair.
+Trigger `guard_closed_books` refuses any insert/update/delete of money rows dated on/before the close (`merge_members`
+bypasses it with `kotasa.allow_closed`); actions check first with `closedError()` (lib/closing.ts) for a clear message.
+Only an owner can reopen (deletes the latest close). `org_settings.auto_close`: the cron closes up to yesterday on the
+billing day. The SMS fee is skipped for a week whose last day is closed.
+
 ## Security rules (keep these)
 - RLS is enabled on every table with **no policies** → browser keys can read nothing. Advisor shows
   "RLS enabled no policy" as INFO; that's intentional.

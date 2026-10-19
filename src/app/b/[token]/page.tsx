@@ -5,7 +5,8 @@ import type { Metadata } from "next";
 import { memberByViewToken } from "@/lib/accounts";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { BRAND } from "@/lib/brand";
-import { addDays, todayColombo } from "@/lib/time";
+import { closedThrough } from "@/lib/closing";
+import { addDays, fmtDay, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
 import { Avatar, Loading, Money } from "@/components/bits";
@@ -37,10 +38,11 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
   const { member: me, org } = found;
 
   // Everything below is scoped to the member's own group.
-  const [people, pairs, rows] = await Promise.all([
+  const [people, pairs, rows, through] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     getLedgerFor(org.id, me.id, { from: addDays(todayColombo(), -45), limit: 150 }),
+    closedThrough(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const b = summarize(me.id, pairs);
@@ -65,6 +67,9 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
           )}
         </p>
         {b.totalOwed > 0 && <p className="mt-1 text-sm text-muted">Others owe you {rs(b.totalOwed)}.</p>}
+        {through && (
+          <p className="mt-1 text-xs text-muted">Amounts up to {fmtDay(through)} are closed and carried forward as they were.</p>
+        )}
       </section>
 
       {(b.owes.length > 0 || b.owed.length > 0) && (
