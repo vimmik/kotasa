@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { recordSettlement } from "@/app/actions/money";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
+import { addDays, fmtDay } from "@/lib/time";
 import { rs } from "@/lib/types";
 
 type Props = {
@@ -16,12 +17,23 @@ type Props = {
   /** pairwise balances in the group, for the "between two others" hint */
   pairs?: { debtor: string; creditor: string; amount: number }[];
   today: string;
+  /** Last closed date (YYYY-MM-DD): payments can't be dated on or before it. */
+  closedThrough?: string | null;
 };
 
 type Direction = "paid" | "received" | "between";
 
-export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [] }: Props) {
+/** A key for this form, so sending it twice (a double tap, a retry) saves the payment once. */
+function newKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (Number(c) ^ (Math.floor(Math.random() * 256) & (15 >> (Number(c) / 4)))).toString(16),
+  );
+}
+
+export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [], closedThrough = null }: Props) {
   const [state, action] = useActionState(recordSettlement, null);
+  const [key] = useState(newKey);
   const [direction, setDirection] = useState<Direction>(initial.direction);
   const [other, setOther] = useState(initial.other);
   const [payer, setPayer] = useState("");
@@ -33,6 +45,11 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
   const hint = between ? owedBetween : direction === "paid" ? owes[other] : owed[other];
   const from = between ? payer : direction === "paid" ? me : other;
   const to = between ? payee : direction === "paid" ? other : me;
+  const name = (id: string) => people.find((p) => p.id === id)?.name ?? "";
+  // Paying someone the balances don't say you owe still counts, but it is often a mix-up.
+  const expected = direction === "paid" ? Object.keys(owes) : Object.keys(owed);
+  const offList = !between && !!other && !expected.includes(other);
+  const minDate = closedThrough ? addDays(closedThrough, 1) : undefined;
   const modes: [Direction, string][] = [
     ["paid", "I paid someone"],
     ["received", "Someone paid me"],
@@ -42,6 +59,7 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
   return (
     <ActionForm action={action} className="card space-y-4 p-5">
       <OrgField />
+      <input type="hidden" name="client_key" value={key} />
       <input type="hidden" name="from_person" value={from} />
       <input type="hidden" name="to_person" value={to} />
 
@@ -98,6 +116,17 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
       </div>
       )}
 
+      {offList && (
+        <p className="rounded-xl bg-amber-soft px-3 py-2 text-sm text-amber-ink">
+          {direction === "paid"
+            ? `Kotasa doesn't show you owing ${name(other).split(" ")[0]} anything right now.`
+            : `Kotasa doesn't show ${name(other).split(" ")[0]} owing you anything right now.`}{" "}
+          {expected.length > 0
+            ? `${direction === "paid" ? "You owe" : "Owed to you by"} ${expected.map((id) => name(id).split(" ")[0]).join(", ")}. You can still record it if the money really changed hands.`
+            : "You can still record it if the money really changed hands."}
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label" htmlFor="amount">Amount (Rs.)</label>
@@ -118,7 +147,8 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
         </div>
         <div>
           <label className="label" htmlFor="paid_on">Date</label>
-          <input id="paid_on" name="paid_on" type="date" defaultValue={today} className="input" />
+          <input id="paid_on" name="paid_on" type="date" defaultValue={today} min={minDate} className="input" />
+          {closedThrough && <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}</p>}
         </div>
       </div>
       <div>
@@ -126,6 +156,12 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
         <input id="note" name="note" className="input" placeholder="Cash at the office" />
       </div>
       <FormMessage state={state} />
+      {state?.confirm === "duplicate" && (
+        <label className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm">
+          <input type="checkbox" name="allow_duplicate" className="mt-0.5 size-4 accent-[var(--brand)]" />
+          <span>Yes, this is another payment, not the same one again</span>
+        </label>
+      )}
       <SubmitButton className="btn-primary w-full" pendingText="Recording…">Record payment</SubmitButton>
     </ActionForm>
   );

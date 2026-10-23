@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { closedThrough } from "@/lib/closing";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
@@ -11,12 +12,13 @@ export default async function NewExpensePage(props: PageProps<"/g/[slug]/expense
   const ctx = await requirePermission(slug, "expense.add");
   const { org, member: me } = ctx;
   const sp = await props.searchParams;
-  const [people, { data: budgets }, categories] = await Promise.all([
+  const [people, { data: budgets }, categories, through] = await Promise.all([
     listMembers(org.id),
     ctx.settings.budgets_enabled
       ? orgDb(org.id).select("budgets", "id, name").eq("closed", false).order("name")
       : Promise.resolve({ data: [] }),
     getCategories(org.id),
+    closedThrough(org.id),
   ]);
   // Put "you" first
   people.sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : 0));
@@ -32,6 +34,7 @@ export default async function NewExpensePage(props: PageProps<"/g/[slug]/expense
         today={todayColombo()}
         canAddGuests={ctx.perms.has("members.invite")}
         defaultBudget={typeof sp.budget === "string" ? sp.budget : undefined}
+        closedThrough={through}
       />
     </div>
   );

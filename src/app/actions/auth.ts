@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -322,5 +323,6 @@ export async function leaveGroup(_: ActionState, form: FormData): Promise<Action
   }
   await db.update("members", { status: "inactive" }).eq("id", ctx.member.id);
   await createAdminClient().from("profiles").update({ last_org_id: null }).eq("id", ctx.profile.id).eq("last_org_id", ctx.org.id);
+  refresh();
   redirect("/groups");
 }

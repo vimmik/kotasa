@@ -183,7 +183,8 @@ export type LedgerRow = {
   circle_id: string | null;
 };
 
-export type ActionState = { ok?: boolean; error?: string; message?: string } | null;
+/** `confirm`: the action stopped to ask first (e.g. "duplicate"); the form resends with a yes. */
+export type ActionState = { ok?: boolean; error?: string; message?: string; confirm?: string } | null;
 
 /** "Rs. 450" for whole rupees, "Rs. 247.50" otherwise (never "Rs. 247.5"). */
 export const rs = (n: number) => {

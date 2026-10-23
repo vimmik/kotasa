@@ -1,22 +1,39 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { LockSimple, LockSimpleOpen } from "@phosphor-icons/react/ssr";
 import { closeBooksNow, reopenBooks, saveAutoClose } from "@/app/actions/books";
 import { ActionForm, ConfirmButton, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
 
-export function CloseBooksForm({ today, min, defaultDate }: { today: string; min: string | null; defaultDate: string }) {
+/**
+ * Picking a date reloads the page with ?through=, so the preview below it (`children`, rendered
+ * on the server) always shows what this close would save and lock.
+ */
+export function CloseBooksForm({
+  min,
+  max,
+  value,
+  summary,
+  children,
+}: {
+  min: string | null;
+  max: string;
+  value: string;
+  summary: string;
+  children: React.ReactNode;
+}) {
   const [state, action] = useActionState(closeBooksNow, null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [loading, start] = useTransition();
   return (
     <ActionForm action={action} className="card space-y-3">
       <OrgField />
       <div>
         <h2 className="font-semibold">Close the books</h2>
-        <p className="text-sm text-muted">
-          Everyone&apos;s balance up to this date is frozen as it is now. Payments after it pay off those amounts, and
-          nothing on or before it can be added, edited or deleted.
-        </p>
+        <p className="text-sm text-muted">Pick the last day to lock, usually the end of the week you just billed.</p>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div>
@@ -25,11 +42,16 @@ export function CloseBooksForm({ today, min, defaultDate }: { today: string; min
             id="closed_through"
             name="closed_through"
             type="date"
-            defaultValue={defaultDate}
+            defaultValue={value}
             min={min ?? undefined}
-            max={today}
+            max={max}
             className="input w-auto"
             required
+            onChange={(e) => {
+              const v = e.target.value;
+              // Typing a date fires on every complete value (e.g. year 0002), so only real choices reload.
+              if (v && v !== value && v <= max && (!min || v >= min)) start(() => router.replace(`${pathname}?through=${v}`, { scroll: false }));
+            }}
           />
         </div>
         <div className="min-w-48 flex-1">
@@ -37,11 +59,15 @@ export function CloseBooksForm({ today, min, defaultDate }: { today: string; min
           <input id="note" name="note" maxLength={120} placeholder="October week 2" className="input" />
         </div>
       </div>
+      <div className={`space-y-2 transition-opacity ${loading ? "opacity-50" : ""}`} aria-busy={loading}>
+        <p className="text-sm font-medium">{summary}</p>
+        {children}
+      </div>
       <ConfirmButton
         pendingText="Closing…"
         title="Close the books?"
-        message="Balances up to that date stop changing, and those days are locked. Only an owner can reopen them."
-        confirmText="Close"
+        message={() => `${summary} The balances above are saved as they are. Only an owner can reopen it.`}
+        confirmText="Close books"
       >
         <LockSimple size={16} aria-hidden="true" /> Close books
       </ConfirmButton>

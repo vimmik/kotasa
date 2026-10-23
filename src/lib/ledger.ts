@@ -33,6 +33,56 @@ export async function getPairs(orgId: string, opts: { until?: string; circleId?:
   return ((data ?? []) as Pair[]).map((p) => ({ ...p, amount: Number(p.amount) }));
 }
 
+export type SettlementInput = {
+  from: string;
+  to: string;
+  amount: number;
+  paidOn: string;
+  note: string | null;
+  by: string;
+  /** One per payment form, so the same form sent twice saves once. */
+  key: string | null;
+  allowDuplicate: boolean;
+};
+
+/**
+ * Save a payment (record_settlement, 20261023): one at a time per pair of people.
+ * "exists" = this form was already saved; "duplicate" = the same payment was saved in the last
+ * 10 minutes and nothing new was saved. Errors (e.g. a closed date) come back as `error`.
+ */
+export async function saveSettlement(
+  orgId: string,
+  s: SettlementInput,
+): Promise<{ status: "saved" | "exists" | "duplicate"; createdAt?: string; error?: undefined } | { error: string }> {
+  const db = createAdminClient();
+  const { data, error } = await db.rpc("record_settlement", {
+    p_org: orgId,
+    p_from: s.from,
+    p_to: s.to,
+    p_amount: s.amount,
+    p_paid_on: s.paidOn,
+    p_note: s.note,
+    p_by: s.by,
+    p_key: s.key,
+    p_allow_duplicate: s.allowDuplicate,
+  });
+  if (error?.code === "PGRST202") {
+    // Before the 20261023 migration has run.
+    const { error: e } = await orgDb(orgId).insert("settlements", {
+      from_person: s.from,
+      to_person: s.to,
+      amount: s.amount,
+      paid_on: s.paidOn,
+      note: s.note,
+      recorded_by: s.by,
+    });
+    return e ? { error: e.message } : { status: "saved" };
+  }
+  if (error) return { error: error.message };
+  const row = (data as { status: "saved" | "exists" | "duplicate"; created_at: string }[])[0];
+  return { status: row.status, createdAt: row.created_at };
+}
+
 export type PersonBalance = {
   owes: { personId: string; amount: number }[]; // I owe them
   owed: { personId: string; amount: number }[]; // they owe me

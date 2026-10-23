@@ -43,6 +43,7 @@ export async function savePersonalExpense(_: QuickState, f: FormData): Promise<Q
     const { data, error } = await db.update("personal_expenses", row).eq("id", id).select("id");
     if (error) return { error: error.message };
     if (!data?.length) return { error: "That entry is gone. Add it again." };
+    refresh();
     redirect("/me/spending?saved=1");
   }
   const { data, error } = await db.insert("personal_expenses", { ...row, source }).select("id").single();
@@ -119,6 +120,7 @@ export async function savePersonalBudget(_: ActionState, f: FormData): Promise<A
     const { error } = await db.insert("personal_budgets", { ...row, is_main: isMain || !main?.length });
     if (error) return { error: error.message };
   }
+  refresh();
   redirect("/me/budgets");
 }
 
@@ -126,6 +128,7 @@ export async function archivePersonalBudget(f: FormData) {
   const me = await getMe();
   const id = str(f, "id");
   if (UUID.test(id)) await meDb(me.profile.id).update("personal_budgets", { archived: true, is_main: false }).eq("id", id);
+  refresh();
   redirect("/me/budgets");
 }
 

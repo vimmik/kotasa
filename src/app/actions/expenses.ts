@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { can, requireMemberFromForm, type OrgContext } from "@/lib/auth";
 import { closedError } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
@@ -127,7 +127,9 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
     if (cErr) return { error: "Saved, but not the other payers. Edit the expense and add them again." };
   }
 
-  redirect(`${ctx.base}/expenses/${expenseId}`);
+  // Replace, so Back doesn't return to the filled-in form and save the expense twice.
+  refresh();
+  redirect(`${ctx.base}/expenses/${expenseId}`, RedirectType.replace);
 }
 
 export async function deleteExpense(f: FormData) {
@@ -140,6 +142,7 @@ export async function deleteExpense(f: FormData) {
     // Closed dates are locked (the page hides the button; the database refuses anyway).
     if (e && !(await closedError(ctx.org.id, e.expense_date)) && (await canEdit(ctx, id, e))) await db.delete("expenses").eq("id", id);
   }
+  refresh();
   redirect(`${ctx.base}/expenses`);
 }
 

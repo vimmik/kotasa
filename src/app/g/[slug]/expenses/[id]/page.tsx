@@ -64,6 +64,7 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           expense={expense}
           shares={Object.fromEntries(shares.map((s) => [s.person_id, Number(s.amount)]))}
           copayers={copayers}
+          closedThrough={through}
         />
       </div>
     );
