@@ -9,7 +9,7 @@ import { orgDb } from "@/lib/org-db";
 import { fmtDay, isPastCutoff, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
-import { Avatar, EmptyState } from "@/components/bits";
+import { Avatar, EmptyState, PayNote } from "@/components/bits";
 
 export default async function Home(props: PageProps<"/g/[slug]">) {
   const { slug } = await props.params;
@@ -107,6 +107,11 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                 ))}
               </ul>
             </section>
+          )}
+          {b.owes.length > 0 && ctx.settings.pay_note?.trim() && (
+            <div className="md:col-span-2">
+              <PayNote note={ctx.settings.pay_note.trim()} />
+            </div>
           )}
           {b.owed.length > 0 && (
             <section>

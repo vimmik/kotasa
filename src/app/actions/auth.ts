@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { getCurrentProfile, hasAnyProfile, requireMemberFromForm, requireProfile } from "@/lib/auth";
+import { getCurrentProfile, hasAnyProfile, landingPath, requireMemberFromForm, requireProfile } from "@/lib/auth";
 import {
   acceptInvite,
   completeGoogleLogin,
@@ -29,13 +29,24 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const MAX_AMOUNT = 99_999_999;
 
 /**
- * Only same-site paths, so a crafted ?next= can't bounce people to another site. Defaults to /me,
- * not "/": a redirect from a server action is rendered without going through src/proxy.ts, so "/"
- * would show the logged-out landing page.
+ * Only same-site paths, so a crafted ?next= can't bounce people to another site. Defaults to /start
+ * (Me or the group, see land()), not "/": a redirect from a server action is rendered without going
+ * through src/proxy.ts, so "/" would show the logged-out landing page.
  */
 function safeNext(v: unknown) {
   const s = String(v ?? "");
-  return s.startsWith("/") && s !== "/" && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/me";
+  return s.startsWith("/") && s !== "/" && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/start";
+}
+
+/**
+ * Where a login goes. "/start" (no ?next=) is resolved here rather than redirecting to the route:
+ * a server action's redirect is rendered as a page, and /start is a route handler.
+ */
+async function land(next: string, authUserId: string) {
+  if (next !== "/start") return next;
+  const { data } = await createAdminClient().from("profile_logins").select("profiles(*)").eq("auth_user_id", authUserId).maybeSingle();
+  const profile = (data as { profiles: Profile | null } | null)?.profiles;
+  return profile ? landingPath(profile) : "/me";
 }
 
 export async function loginWithPin(_: ActionState, form: FormData): Promise<ActionState> {
@@ -62,7 +73,7 @@ export async function loginWithPin(_: ActionState, form: FormData): Promise<Acti
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email: u.user.email, password: pin });
   if (error) return { error: "Wrong PIN. Try again." };
-  redirect(safeNext(form.get("next")));
+  redirect(await land(safeNext(form.get("next")), login.auth_user_id));
 }
 
 async function origin() {
@@ -128,7 +139,7 @@ export async function signInWithGoogleToken(token: string, nonce: string, intent
     await supabase.auth.signOut();
     return { error: GOOGLE_ERRORS[outcome.error] };
   }
-  redirect(outcome.path);
+  redirect(await land(outcome.path, data.user.id));
 }
 
 /**

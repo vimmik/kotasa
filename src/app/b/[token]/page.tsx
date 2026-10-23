@@ -6,11 +6,11 @@ import { memberByViewToken } from "@/lib/accounts";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { BRAND } from "@/lib/brand";
 import { closedThrough } from "@/lib/closing";
-import { expenseIconMap } from "@/lib/org-config";
+import { expenseIconMap, getPayNote } from "@/lib/org-config";
 import { addDays, fmtDay, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
-import { Avatar, Loading, Money } from "@/components/bits";
+import { Avatar, Loading, Money, PayNote } from "@/components/bits";
 import { DevelopedBy, Logo } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -39,11 +39,12 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
   const { member: me, org } = found;
 
   // Everything below is scoped to the member's own group.
-  const [people, pairs, rows, through] = await Promise.all([
+  const [people, pairs, rows, through, payNote] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     getLedgerFor(org.id, me.id, { from: addDays(todayColombo(), -45), limit: 150 }),
     closedThrough(org.id),
+    getPayNote(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const b = summarize(me.id, pairs);
@@ -94,6 +95,8 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
           </ul>
         </section>
       )}
+
+      {payNote && b.totalOwe > 0 && <PayNote note={payNote} />}
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-muted">Where it came from (last 45 days)</h2>

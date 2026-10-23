@@ -52,7 +52,7 @@ async function sha256Hex(text: string) {
 export function GoogleSignIn({
   clientId,
   intent,
-  next = "/me",
+  next = "/start",
   text = "continue_with",
   fallback,
 }: {

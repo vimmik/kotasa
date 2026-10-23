@@ -262,6 +262,10 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             No. One payment form saves once, however many times it is sent. If you record the same payment again within 10
             minutes, Kotasa asks whether it really is a second payment before saving it.
           </Faq>
+          <Faq q="Where do I send the money?">
+            To the person Kotasa says you owe, by cash or bank transfer. If your group added a How to pay note (bank
+            details, who collects cash), it shows on Home and on your bill link whenever you owe something.
+          </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Tap Pay next to them on Home, or record it from Account › Record a payment. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>

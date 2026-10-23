@@ -35,7 +35,7 @@ export async function proxy(request: NextRequest) {
   const loggedIn = Boolean(data?.claims?.sub);
   if (path === "/") {
     if (!loggedIn) return response;
-    const me = NextResponse.redirect(new URL("/me", request.url));
+    const me = NextResponse.redirect(new URL("/start", request.url)); // Me or the group (app/start)
     response.cookies.getAll().forEach((c) => me.cookies.set(c)); // keep a refreshed session
     return me;
   }
