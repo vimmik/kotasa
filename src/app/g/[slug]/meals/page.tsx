@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight } from "@phosphor-icons/react/ssr";
 import { requireMember, requireModule } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getMealSlots } from "@/lib/org-config";
@@ -51,6 +52,22 @@ export default async function MealsPage(props: PageProps<"/g/[slug]/meals">) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(w, i)).filter(
     (d, i) => i < 5 || menuItems.some((m) => m.menu_date === d) || myOrders.some((o) => o.order_date === d),
   );
+  // What people come here for is the next meal they can order, so open days go first and days
+  // already gone shrink to one line each underneath.
+  const open = days.filter((d) => d >= today);
+  const past = days.filter((d) => d < today);
+  const pastLine = (d: string) => {
+    const parts = [
+      ...myOrders
+        .filter((o) => o.order_date === d)
+        .map((o) => `${slots.find((s) => s.key === o.meal)?.label ?? o.meal}: ${o.item_name}${o.qty > 1 ? ` ×${o.qty}` : ""}`),
+      ...joins.filter((j) => j.join_date === d && j.member_id === me.id).map((j) => `${slots.find((s) => s.key === j.meal)?.label ?? j.meal}: shared bill`),
+    ];
+    const total =
+      myOrders.filter((o) => o.order_date === d).reduce((s, o) => s + o.unit_price * o.qty, 0) +
+      shared.filter((e) => e.meal_date === d).reduce((s, e) => s + e.share, 0);
+    return { text: parts.join(" · ") || "Nothing", total };
+  };
 
   return (
     <div className="stagger space-y-4">
@@ -63,8 +80,17 @@ export default async function MealsPage(props: PageProps<"/g/[slug]/meals">) {
         }
         action={<WeekNav base={`${base}/meals?`} ws={w} />}
       />
+      {w <= today && !open.some((d) => slots.some((s) => !isPastCutoff(d, s.cutoff))) && (
+        <Link href={`${base}/meals?week=${addDays(w, 7)}`} className="card-link flex items-center justify-between gap-3">
+          <span>
+            <span className="block font-semibold">Ordering for this week is closed</span>
+            <span className="text-sm text-muted">See next week&apos;s menu and order ahead.</span>
+          </span>
+          <ArrowRight size={18} className="text-muted" aria-hidden="true" />
+        </Link>
+      )}
       <div className="space-y-3">
-        {days.map((d) => (
+        {open.map((d) => (
           <section key={d} className={`card ${d === today ? "ring-2 ring-brand/40" : ""}`}>
             <div className="mb-3 flex items-center gap-2">
               <h2 className="font-semibold">{fmtDay(d)}</h2>
@@ -109,6 +135,23 @@ export default async function MealsPage(props: PageProps<"/g/[slug]/meals">) {
           </section>
         ))}
       </div>
+      {past.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-medium text-muted">{open.length ? "Earlier this week" : "This week"}</h2>
+          <ul className="card divide-y divide-line py-1">
+            {past.map((d) => {
+              const l = pastLine(d);
+              return (
+                <li key={d} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="w-24 shrink-0 font-medium">{fmtDay(d)}</span>
+                  <span className={`min-w-0 flex-1 truncate ${l.total ? "" : "text-muted"}`}>{l.text}</span>
+                  {l.total > 0 && <span className="shrink-0 font-semibold tabular-nums">{rs(l.total)}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

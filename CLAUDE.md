@@ -94,7 +94,7 @@ Product decisions Kavi made (don't change without asking):
 ## Architecture
 ```
 src/proxy.ts                 refresh Supabase session; logged-out -> /login (with ?next= for /g/ and /join/)
-                             (public: /login /signup /setup /auth /b/); "/" -> /me when logged in
+                             (public: /login /signup /setup /auth /b/); "/" -> /start when logged in
 src/app/page.tsx             landing page for logged-out visitors (static). Logged-in people never see it.
                              Server-action redirects skip the proxy, so after login redirect to /me, never "/"
 src/app/privacy, terms       public legal pages (needed for Google brand verification); contact = BRAND.contactEmail
@@ -125,6 +125,9 @@ src/app/auth/callback/       Google: linked login -> done; else profile by verif
                              Logins: Me › Settings "Sign-in" card sets number + PIN or connects Google. A Google
                              sign-up that already had a phone account joins it with number + PIN (welcome step 1 or
                              settings): mergeNewProfileInto (lib/accounts.ts), only while the new one has no Me data
+src/app/start/route.ts       where a login lands (landingPath, lib/auth.ts): /me for people with Me data, else their
+                             last (or first) group's Home, else /me. Login actions resolve "/start" themselves (land()
+                             in actions/auth.ts) because a server-action redirect renders a page, not a route handler
 src/app/login, setup         setup = first-run only (first account + first group)
 src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,
@@ -161,7 +164,7 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   `last_org_id`. `profile_logins` — auth.users ↔ profiles, many-to-one. `method`: pin | google | email.
 - `orgs` — a group: `slug` (URL), `name`, `kind`, `plan`. `org_settings` (one row per org): modules,
   collector_id, billing_weekday (1=Mon), sms_send_hour, sms_enabled, sms_fee, sms_monthly_cap, sms_template
-  (must contain `{total}` and `{link}`). `org_roles` (key, label, permissions[]), `org_categories`,
+  (must contain `{total}` and `{link}`), `pay_note` (20261024, "How to pay", shown on Home and the bill when owing). `org_roles` (key, label, permissions[]), `org_categories`,
   `org_meal_slots` (key, label, cutoff), `org_invites`, `circles` + `circle_members` (phase 1b UI).
 - `members` — someone inside one group: `org_id`, `profile_id` (null = SMS-only guest), `role_key`,
   `status` active | pending | inactive, `phone` (SMS), `view_token` (24 hex, for `/b/<token>`).

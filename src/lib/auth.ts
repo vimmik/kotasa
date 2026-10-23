@@ -126,3 +126,21 @@ export const getMemberships = cache(async (profileId: string): Promise<Membershi
     .order("created_at", { ascending: false });
   return ((data ?? []) as (Member & { orgs: Org })[]).map(({ orgs, ...member }) => ({ member, org: orgs }));
 });
+
+/**
+ * Where someone lands after logging in (or opening "/"). People who keep their own budget go to
+ * Me; people who only share costs go to their group's Home (the last one they opened), since an
+ * office member added by an admin comes for "who owes what" and today's meals.
+ */
+export async function landingPath(profile: Profile): Promise<string> {
+  const db = createAdminClient();
+  const [memberships, { count: spent }, { count: budgets }] = await Promise.all([
+    getMemberships(profile.id),
+    db.from("personal_expenses").select("id", { count: "exact", head: true }).eq("profile_id", profile.id),
+    db.from("personal_budgets").select("id", { count: "exact", head: true }).eq("profile_id", profile.id),
+  ]);
+  if ((spent ?? 0) > 0 || (budgets ?? 0) > 0) return "/me";
+  const active = memberships.filter((m) => m.member.status === "active");
+  const pick = active.find((m) => m.org.id === profile.last_org_id) ?? active[0];
+  return pick ? `/g/${pick.org.slug}` : "/me";
+}

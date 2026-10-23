@@ -54,6 +54,8 @@ export type OrgSettings = {
   simplify_debts?: boolean;
   /** close the books every billing day, through the day before; missing before the 20261018 migration */
   auto_close?: boolean;
+  /** "How to pay" (bank account, cash to whom…), shown on the bill and Home; missing before 20261024 */
+  pay_note?: string | null;
 };
 
 /** Someone inside one group. profile_id null = SMS-only guest. */

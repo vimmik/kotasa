@@ -330,7 +330,10 @@ export async function saveBilling(_: ActionState, f: FormData): Promise<ActionSt
     const { data } = await orgDb(ctx.org.id).select("members", "id").eq("id", collector).eq("status", "active").maybeSingle();
     if (!data) return { error: "The collector must be an active member" };
   }
+  const payNote = str(f, "pay_note").slice(0, 300) || null;
   const { error } = await orgDb(ctx.org.id).update("org_settings", {
+    // Only once the 20261024 column exists (the field is shown only then).
+    ...(ctx.settings.pay_note !== undefined ? { pay_note: payNote } : {}),
     collector_id: collector,
     billing_weekday: day,
     sms_send_hour: hour,

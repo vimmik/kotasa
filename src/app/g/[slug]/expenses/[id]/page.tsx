@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 import { can, requireMember } from "@/lib/auth";
 import { closedThrough } from "@/lib/closing";
-import { listMembers } from "@/lib/ledger";
+import { getPairs, listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
 import { getExpenseCopayers, paidByEach } from "@/lib/payers";
@@ -22,13 +22,14 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
 
   const db = orgDb(org.id);
-  const [{ data: e }, { data: shareRows }, people, categories, copayerMap, through] = await Promise.all([
+  const [{ data: e }, { data: shareRows }, people, categories, copayerMap, through, pairs] = await Promise.all([
     db.select("expenses").eq("id", id).maybeSingle(),
     db.select("expense_shares").eq("expense_id", id),
     listMembers(org.id, { includeInactive: true }),
     getCategories(org.id, { includeArchived: true }),
     getExpenseCopayers(org.id, [id]),
     closedThrough(org.id),
+    getPairs(org.id),
   ]);
   if (!e) notFound();
   const expense = e as Expense;
@@ -41,6 +42,9 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
   const canEdit = !locked && (can(ctx, "expense.edit_any") || expense.created_by === me.id || paid.has(me.id));
   const myShare = Number(shares.find((s) => s.person_id === me.id)?.amount ?? 0);
   const myNet = (paid.get(me.id) ?? 0) - myShare;
+  // Offer "Pay" only when the balances (after netting) still say I owe the payer, and never more than that.
+  const owedToPayer = pairs.find((p) => p.debtor === me.id && p.creditor === expense.paid_by)?.amount ?? 0;
+  const payNow = Math.min(-myNet, owedToPayer);
   const who = (pid: string) => (pid === me.id ? "You" : names.get(pid));
 
   let budgetName: string | null = null;
@@ -117,6 +121,11 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           )}
         </p>
         {expense.note && <p className="text-sm text-muted">{expense.note}</p>}
+        {payNow > 0.004 && !copayers.length && expense.paid_by !== me.id && (
+          <Link href={`${base}/settle?to=${expense.paid_by}&amount=${payNow}`} className="btn-primary w-full sm:w-auto">
+            Pay {names.get(expense.paid_by)?.split(" ")[0]} {rs(payNow)}
+          </Link>
+        )}
       </div>
 
       <section className="card">

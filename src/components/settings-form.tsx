@@ -237,6 +237,21 @@ export function BillingForm({ s, people }: { s: OrgSettings; people: { id: strin
           <b>Really send SMS.</b> When off, sends are logged as a dry run. Nothing is sent or charged.
         </span>
       </label>
+      {s.pay_note !== undefined && (
+        <div className="sm:col-span-3">
+          <label className="label" htmlFor="pay_note">How to pay (optional)</label>
+          <textarea
+            id="pay_note"
+            name="pay_note"
+            defaultValue={s.pay_note ?? ""}
+            rows={2}
+            maxLength={300}
+            className="input"
+            placeholder="BOC 1234567, K. Dinajara · or cash to Kavi at the office"
+          />
+          <p className="mt-1 text-xs text-muted">Shown on everyone&apos;s bill link and on Home when they owe, so they know where to send the money.</p>
+        </div>
+      )}
       <div className="sm:col-span-3">
         <label className="label" htmlFor="sms_template">Message</label>
         <textarea id="sms_template" name="sms_template" defaultValue={s.sms_template} rows={3} className="input font-mono text-sm" />

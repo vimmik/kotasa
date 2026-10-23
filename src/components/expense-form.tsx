@@ -26,13 +26,20 @@ type Props = {
   closedThrough?: string | null;
 };
 
+/** Groups this size or smaller start a new expense split between everyone. */
+const SPLIT_ALL_UP_TO = 8;
+
 export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget, closedThrough = null }: Props) {
   const [state, action] = useActionState(saveExpense, null);
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [category, setCategory] = useState(expense?.category ?? categories[0]?.key ?? "other");
   const [paidBy, setPaidBy] = useState(expense?.paid_by ?? me);
   const [splitType, setSplitType] = useState<"equal" | "custom">(expense?.split_type ?? "equal");
-  const [selected, setSelected] = useState<Set<string>>(new Set(shares ? Object.keys(shares) : [me]));
+  // A new expense in a small group is usually for everyone; in a big one (an office floor) it isn't,
+  // so there you start with just yourself and tick the others.
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(shares ? Object.keys(shares) : people.length <= SPLIT_ALL_UP_TO ? people.map((p) => p.id) : [me]),
+  );
   const [custom, setCustom] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(shares ?? {}).map(([k, v]) => [k, String(v)])),
   );
