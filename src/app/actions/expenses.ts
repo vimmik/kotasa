@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { can, requireMemberFromForm, type OrgContext } from "@/lib/auth";
+import { closedError } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
 import { normalizePhone } from "@/lib/phone";
 import { isValidDate } from "@/lib/time";
@@ -88,16 +89,23 @@ export async function saveExpense(_: ActionState, f: FormData): Promise<ActionSt
   let expenseId = id;
   if (id) {
     if (!UUID.test(id)) return { error: "That expense no longer exists" };
-    const { data: existing } = await db.select("expenses", "created_by, paid_by, category").eq("id", id).maybeSingle();
+    const { data: existing } = await db
+      .select("expenses", "created_by, paid_by, category, expense_date")
+      .eq("id", id)
+      .maybeSingle();
     if (!existing) return { error: "That expense no longer exists" };
-    const ex = existing as Pick<Expense, "created_by" | "paid_by" | "category">;
+    const ex = existing as Pick<Expense, "created_by" | "paid_by" | "category" | "expense_date">;
     if (!(await canEdit(ctx, id, ex))) return { error: "Only the person who added or paid this, or an admin, can edit it" };
+    const closed = await closedError(ctx.org.id, ex.expense_date, date);
+    if (closed) return { error: closed };
     if ((cat as { archived: boolean }).archived && ex.category !== category) return { error: "That category is archived" };
     const { error } = await db.update("expenses", row).eq("id", id);
     if (error) return { error: error.message };
     await db.delete("expense_shares").eq("expense_id", id);
   } else {
     if ((cat as { archived: boolean }).archived) return { error: "That category is archived" };
+    const closed = await closedError(ctx.org.id, date);
+    if (closed) return { error: closed };
     const { data, error } = await db
       .insert("expenses", { ...row, created_by: ctx.member.id })
       .select("id")
@@ -127,8 +135,10 @@ export async function deleteExpense(f: FormData) {
   const id = str(f, "id");
   const db = orgDb(ctx.org.id);
   if (UUID.test(id)) {
-    const { data: e } = await db.select("expenses", "created_by, paid_by").eq("id", id).maybeSingle();
-    if (e && (await canEdit(ctx, id, e as Pick<Expense, "created_by" | "paid_by">))) await db.delete("expenses").eq("id", id);
+    const { data } = await db.select("expenses", "created_by, paid_by, expense_date").eq("id", id).maybeSingle();
+    const e = data as Pick<Expense, "created_by" | "paid_by" | "expense_date"> | null;
+    // Closed dates are locked (the page hides the button; the database refuses anyway).
+    if (e && !(await closedError(ctx.org.id, e.expense_date)) && (await canEdit(ctx, id, e))) await db.delete("expenses").eq("id", id);
   }
   redirect(`${ctx.base}/expenses`);
 }

@@ -11,6 +11,7 @@ export const PERMISSIONS = [
   { key: "members.manage", label: "Manage members", hint: "Approve joins, change roles, deactivate" },
   { key: "sms.send", label: "Send the weekly SMS", hint: "Preview and send bills" },
   { key: "settings.manage", label: "Group settings", hint: "Modules, categories, meal slots, billing" },
+  { key: "books.close", label: "Close the books", hint: "Freeze balances up to a date so they stop changing" },
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number]["key"];
@@ -26,4 +27,5 @@ export const ADMIN_PERMISSIONS: Permission[] = [
   "members.manage",
   "sms.send",
   "settings.manage",
+  "books.close",
 ];

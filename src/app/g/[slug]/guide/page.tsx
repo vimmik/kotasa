@@ -229,8 +229,8 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
               <p className="font-semibold">The Admin area</p>
               <p className="text-muted">
                 Add people and invite links, approve joins and set roles. Set the daily menu and meal cutoffs, see the
-                packing list, fix anyone&apos;s order, preview and send the weekly SMS, and turn modules on or off in
-                Settings. You only see the tabs your role allows.
+                packing list, fix anyone&apos;s order, preview and send the weekly SMS, close the books so settled weeks
+                stop changing, and turn modules on or off in Settings. You only see the tabs your role allows.
               </p>
             </div>
             <ArrowRight size={18} className="mt-1 shrink-0 text-muted" aria-hidden="true" />
@@ -246,14 +246,23 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             The person who added it, anyone who paid for it, and anyone whose role allows editing any expense.
           </Faq>
           {settings.simplify_debts !== false && (
-            <Faq q="Why do I owe someone I didn't share with?">
-              This group settles with the fewest payments. Kotasa adds up what everyone is owed and owes, then tells each
-              person who to pay so the fewest payments clear everything. Your total stays the same; only who you pay
-              changes. Admins can turn this off in Settings.
+            <Faq q="Why do I pay someone other than who paid for my share?">
+              This group settles with fewer payments. If you owe someone who owes another person, Kotasa may ask you to pay
+              that person directly, but only someone you have shared with in this group, or the group&apos;s collector. Your
+              total stays the same; only who you pay changes. Admins can turn this off in Settings.
             </Faq>
           )}
+          <Faq q="Why can't I change an old expense or payment?">
+            The group&apos;s books are closed up to a date. Balances up to then are frozen as they were, so a payment or a
+            late change can&apos;t move what other people were told. Anything after that date works as usual. An owner can
+            reopen the latest close if something needs fixing.
+          </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
+          </Faq>
+          <Faq q="I share several groups with the same person. Where's the total?">
+            Open Your groups (the group switcher). Across all your groups lists everyone you owe or who owes you, with
+            each group&apos;s amount added up into one total. Payments are still recorded inside each group.
           </Faq>
           <Faq q="What if I don't pay this week?">
             Nothing breaks. What you still owe carries over and shows up in next week&apos;s total.

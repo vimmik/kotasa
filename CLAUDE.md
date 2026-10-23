@@ -101,7 +101,8 @@ src/app/welcome/             onboarding after a brand-new Google account (auth c
 src/app/me/                  Me: private personal budgets (docs/personal-budget-plan.md). Today (safe to spend,
                              quick add), add, spending (+[id] edit), budgets (+new, [id]), settings (currency,
                              income, payday, categories, per-group feed + category mapping)
-src/app/groups/              your groups, pending joins, create a group
+src/app/groups/              your groups, pending joins, create a group, "Across all your groups" (per-person net
+                             over every shared group, lib/across.ts; same person = profile, else guest mobile/email)
 src/app/join/[code]/         accept an invite link
 src/app/g/[slug]/            one group (layout: requireMember(slug), group switcher, nav by modules/perms)
   page.tsx                   home: net balance, you owe / owes you, today's meals, activity
@@ -194,8 +195,18 @@ must differ (see getMe).
 A settlement A→B is stored as **B owes A** so it cancels A's debt.
 `pair_balances(p_org, p_until, p_circle)` nets per pair → rows with positive amount. `group_balances` (same args)
 is what `getPairs` calls: with `org_settings.simplify_debts` on (default, Settings › Modules "Fewest payments") and
-no circle, it matches everyone's net biggest-first so people pay the fewest others; else it returns pair_balances.
+no circle, it starts from pair_balances and shortens chains (X owes Y owes Z -> X pays Z) only when X and Z share a
+ledger line or Z is the collector, so nobody is told to pay a stranger (20261016); else it returns pair_balances.
 Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
+
+**Closing the books** (20261018, Admin › Close books, permission `books.close`): `close_books(org, through, by)` stores
+`group_balances` at that date in `org_closings` + `org_closing_balances` (frozen, never recalculated). With a close in
+force, `group_balances` = frozen balances, minus payments since between the same two people (they pay the frozen
+amount first, so they change nobody else's), plus everything else since (simplified on its own), netted per pair.
+Trigger `guard_closed_books` refuses any insert/update/delete of money rows dated on/before the close (`merge_members`
+bypasses it with `kotasa.allow_closed`); actions check first with `closedError()` (lib/closing.ts) for a clear message.
+Only an owner can reopen (deletes the latest close). `org_settings.auto_close`: the cron closes up to yesterday on the
+billing day. The SMS fee is skipped for a week whose last day is closed.
 
 ## Security rules (keep these)
 - RLS is enabled on every table with **no policies** → browser keys can read nothing. Advisor shows

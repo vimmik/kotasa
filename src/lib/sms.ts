@@ -1,8 +1,9 @@
 import "server-only";
+import { closedThrough } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
 import { getPairs, listMembers, summarize } from "@/lib/ledger";
 import { appUrl, BRAND } from "@/lib/brand";
-import { fmtWeek, todayColombo } from "@/lib/time";
+import { addDays, fmtWeek, todayColombo } from "@/lib/time";
 import { round2, type Org, type OrgSettings } from "@/lib/types";
 
 /** What the SMS functions need to know about a group. */
@@ -123,11 +124,14 @@ export type SmsPreview = {
 /** Build this week's message for everyone in the group (used for preview and sending). */
 export async function buildWeeklyMessages(weekStart: string, g: SmsGroup): Promise<SmsPreview[]> {
   const { org, settings } = g;
-  const [people, pairs, { data: sent }] = await Promise.all([
+  const [people, pairs, { data: sent }, through] = await Promise.all([
     listMembers(org.id),
     getPairs(org.id),
     orgDb(org.id).select("sms_logs", "person_id").eq("week_start", weekStart).eq("status", "sent"),
+    closedThrough(org.id),
   ]);
+  // The fee is dated the week's last day; once that day is closed it can't be added any more.
+  const weekClosed = !!through && addDays(weekStart, 6) <= through;
   const names = new Map(people.map((p) => [p.id, p.full_name.split(" ")[0]]));
   const sentSet = new Set((sent ?? []).map((s) => s.person_id));
   const collector = settings.collector_id;
@@ -135,7 +139,7 @@ export async function buildWeeklyMessages(weekStart: string, g: SmsGroup): Promi
   return people.map((p) => {
     const b = summarize(p.id, pairs);
     const alreadySent = sentSet.has(p.id);
-    const fee = !alreadySent && collector && collector !== p.id ? Number(settings.sms_fee) : 0;
+    const fee = !alreadySent && !weekClosed && collector && collector !== p.id ? Number(settings.sms_fee) : 0;
     const render = (smsFee: number) => {
       const lines = new Map(b.owes.map((o) => [o.personId, o.amount]));
       if (smsFee && collector) lines.set(collector, (lines.get(collector) ?? 0) + smsFee);

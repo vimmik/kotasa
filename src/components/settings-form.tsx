@@ -54,7 +54,7 @@ export function ModulesForm({ s }: { s: OrgSettings }) {
           <Toggle
             name="simplify_debts"
             label="Fewest payments"
-            hint="Settle up with as few payments as possible. Someone may be asked to pay a person they didn't share with directly; the totals stay the same."
+            hint="Cut out the middle person when it saves a payment. People only pay someone they shared with, or the collector; totals stay the same."
             on={s.simplify_debts}
           />
         )}
