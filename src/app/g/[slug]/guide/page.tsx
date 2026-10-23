@@ -253,9 +253,14 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             </Faq>
           )}
           <Faq q="Why can't I change an old expense or payment?">
-            The group&apos;s books are closed up to a date. Balances up to then are frozen as they were, so a payment or a
-            late change can&apos;t move what other people were told. Anything after that date works as usual. An owner can
-            reopen the latest close if something needs fixing.
+            The group&apos;s books are closed up to a date. Balances up to then are saved as they were, so a late change
+            can&apos;t move what other people were told. A saved amount between two people only changes when one of them
+            pays, gets paid or is owed something new. Anything after that date works as usual, and today is never closed.
+            An owner can reopen the latest close if something needs fixing.
+          </Faq>
+          <Faq q="I tapped Record payment twice. Is it saved twice?">
+            No. One payment form saves once, however many times it is sent. If you record the same payment again within 10
+            minutes, Kotasa asks whether it really is a second payment before saving it.
           </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.

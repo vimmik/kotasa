@@ -8,6 +8,7 @@ import { ICONS } from "@/components/bits";
 import { OrgField } from "@/components/org-field";
 import { splitEqually } from "@/lib/split";
 import { BRAND } from "@/lib/brand";
+import { addDays, fmtDay } from "@/lib/time";
 import { rs, round2, type Budget, type Category, type Copayer, type Expense, type MemberWithLogin } from "@/lib/types";
 
 type Props = {
@@ -21,9 +22,11 @@ type Props = {
   shares?: Record<string, number>;
   copayers?: Copayer[];
   defaultBudget?: string;
+  /** Last closed date (YYYY-MM-DD): nothing can be dated on or before it. */
+  closedThrough?: string | null;
 };
 
-export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget }: Props) {
+export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget, closedThrough = null }: Props) {
   const [state, action] = useActionState(saveExpense, null);
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [category, setCategory] = useState(expense?.category ?? categories[0]?.key ?? "other");
@@ -94,7 +97,16 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
             </div>
             <div>
               <label className="label" htmlFor="expense_date">Date</label>
-              <input id="expense_date" name="expense_date" type="date" defaultValue={expense?.expense_date ?? today} className="input" required />
+              <input
+                id="expense_date"
+                name="expense_date"
+                type="date"
+                defaultValue={expense?.expense_date ?? today}
+                min={closedThrough ? addDays(closedThrough, 1) : undefined}
+                className="input"
+                required
+              />
+              {closedThrough && <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}</p>}
             </div>
           </div>
           <div>
