@@ -24,9 +24,12 @@ export default async function Budgets() {
         title="Budgets"
         sub="Daily, weekly, monthly, payday to payday, yearly, or for a trip"
         action={
-          <Link href={`/me/budgets/new${budgets.length ? "" : "?main=1"}`} className="btn-primary">
-            <Plus size={16} aria-hidden="true" /> New budget
-          </Link>
+          // With none yet, the empty state below has the one button to start.
+          budgets.length > 0 && (
+            <Link href="/me/budgets/new" className="btn-primary">
+              <Plus size={16} aria-hidden="true" /> New budget
+            </Link>
+          )
         }
       />
       {budgets.length === 0 ? (

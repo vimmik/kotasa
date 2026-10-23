@@ -72,7 +72,8 @@ async function Groups() {
         </ul>
       )}
 
-      {active.length > 0 && <AcrossGroups profileId={profile.id} />}
+      {/* With one group this is the same as that group's Home, so only show it from two groups up. */}
+      {active.length > 1 && <AcrossGroups profileId={profile.id} />}
 
       {pending.length > 0 && (
         <section className="card space-y-2">
@@ -97,7 +98,7 @@ async function Groups() {
         </p>
       )}
 
-      <CreateGroupForm />
+      <CreateGroupForm collapsed={active.length > 0} />
 
       <form action={logout}>
         <button className="btn-ghost w-full text-danger">

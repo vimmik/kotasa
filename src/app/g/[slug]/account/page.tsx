@@ -112,7 +112,7 @@ export default async function AccountPage(props: PageProps<"/g/[slug]/account">)
           />
         ) : (
           <div className="card py-1">
-            <ActivityList rows={rows} me={me.id} names={names} icons={icons} base={base} />
+            <ActivityList rows={rows} me={me.id} names={names} icons={icons} base={base} max={60} />
           </div>
         )}
       </section>

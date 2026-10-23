@@ -6,6 +6,7 @@ import { memberByViewToken } from "@/lib/accounts";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { BRAND } from "@/lib/brand";
 import { closedThrough } from "@/lib/closing";
+import { expenseIconMap } from "@/lib/org-config";
 import { addDays, fmtDay, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
@@ -46,6 +47,7 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const b = summarize(me.id, pairs);
+  const icons = await expenseIconMap(org.id, rows.filter((r) => r.source === "expense").map((r) => r.ref_id));
 
   return (
     <div className="space-y-5">
@@ -99,7 +101,7 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
           <p className="card text-sm text-muted">No activity.</p>
         ) : (
           <div className="card py-1">
-            <ActivityList rows={rows} me={me.id} names={names} />
+            <ActivityList rows={rows} me={me.id} names={names} icons={icons} />
           </div>
         )}
       </section>

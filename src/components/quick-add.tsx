@@ -1,7 +1,7 @@
 "use client";
 
 import { createElement, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowRight, ArrowUUpLeft, CalendarBlank, CheckCircle, Lightning } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ArrowUUpLeft, CalendarBlank, CheckCircle, Lightning, Plus } from "@phosphor-icons/react/ssr";
 import { deletePersonalExpense, savePersonalExpense } from "@/app/actions/personal";
 import { money } from "@/lib/currency";
 import { addDays } from "@/lib/time";
@@ -216,6 +216,8 @@ export function QuickAdd({ categories, history, chips, starters, today, currency
       )}
 
       {!line && (chips.length > 0 || starters.length > 0) && (
+        <>
+        <p className="text-xs text-muted">{chips.length > 0 ? "Tap to add again for today" : "Tap one, then type the amount"}</p>
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
           {chips.length > 0
             ? chips.map((c) => (
@@ -241,10 +243,12 @@ export function QuickAdd({ categories, history, chips, starters, today, currency
                   }}
                   className={`${chip} shrink-0 border-dashed border-line text-muted hover:text-ink`}
                 >
-                  {s} …
+                  <Plus size={12} weight="bold" aria-hidden="true" />
+                  {s}
                 </button>
               ))}
         </div>
+        </>
       )}
     </section>
   );
