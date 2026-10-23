@@ -8,8 +8,8 @@ import { completeGoogleLogin, LINK_COOKIE, readLinkTicket } from "@/lib/accounts
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
   const code = url.searchParams.get("code");
-  const nextRaw = url.searchParams.get("next") ?? "/me";
-  const next = nextRaw.startsWith("/") && nextRaw !== "/" && !nextRaw.startsWith("//") && !nextRaw.startsWith("/\\") ? nextRaw : "/me";
+  const nextRaw = url.searchParams.get("next") ?? "/start";
+  const next = nextRaw.startsWith("/") && nextRaw !== "/" && !nextRaw.startsWith("//") && !nextRaw.startsWith("/\\") ? nextRaw : "/start";
   const linking = request.cookies.has(LINK_COOKIE);
   const to = (path: string) => {
     const res = NextResponse.redirect(new URL(path, url.origin));

@@ -15,7 +15,8 @@ export async function closeBooksNow(_: ActionState, f: FormData): Promise<Action
   const through = str(f, "closed_through");
   const note = str(f, "note") || null;
   if (!isValidDate(through)) return { error: "Pick the last date to close" };
-  if (through > todayColombo()) return { error: "You can only close up to today. Pick today or an earlier date." };
+  // Today stays open, so people can keep ordering meals and recording today's payments.
+  if (through >= todayColombo()) return { error: "You can close up to yesterday. Today stays open for orders and payments." };
   const last = await closedThrough(ctx.org.id);
   if (last && through <= last)
     return { error: `The books are already closed up to ${fmtDay(last)}. Pick a later date.` };

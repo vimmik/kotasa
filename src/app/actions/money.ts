@@ -1,12 +1,13 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { can, requireMemberFromForm } from "@/lib/auth";
 import { closedError } from "@/lib/closing";
+import { saveSettlement } from "@/lib/ledger";
 import { orgDb } from "@/lib/org-db";
 import { isValidDate, todayColombo } from "@/lib/time";
-import { round2, type ActionState } from "@/lib/types";
+import { round2, rs, type ActionState } from "@/lib/types";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const UUID = /^[0-9a-f-]{36}$/;
@@ -30,19 +31,35 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
     return { error: "You can only record payments you made or received" };
 
   const db = orgDb(ctx.org.id);
-  const { data: found } = await db.select("members", "id").in("id", [from, to]).neq("status", "pending");
-  if ((found ?? []).length !== 2) return { error: "Both people must be in this group" };
+  const { data: found } = await db.select("members", "id, full_name").in("id", [from, to]).neq("status", "pending");
+  const people = (found ?? []) as { id: string; full_name: string }[];
+  if (people.length !== 2) return { error: "Both people must be in this group" };
 
-  const { error } = await db.insert("settlements", {
-    from_person: from,
-    to_person: to,
+  const key = str(f, "client_key");
+  const saved = await saveSettlement(ctx.org.id, {
+    from,
+    to,
     amount,
-    paid_on: paidOn,
+    paidOn,
     note,
-    recorded_by: me,
+    by: me,
+    key: UUID.test(key) ? key : null,
+    allowDuplicate: f.get("allow_duplicate") === "on",
   });
-  if (error) return { error: error.message };
-  redirect(`${ctx.base}?settled=1`);
+  if (saved.error !== undefined) return { error: saved.error };
+  if (saved.status === "duplicate") {
+    const name = (id: string) => people.find((p) => p.id === id)?.full_name.split(" ")[0] ?? "?";
+    const mins = saved.createdAt ? Math.max(1, Math.round((Date.now() - Date.parse(saved.createdAt)) / 60000)) : null;
+    return {
+      confirm: "duplicate",
+      error: `${name(from)} paying ${name(to)} ${rs(amount)} was already recorded${mins ? ` ${mins} min ago` : " just now"}. If this is a second payment, tick the box and record it again.`,
+    };
+  }
+  // "exists": this same form was already saved (a second tap), so just show the result.
+  // refresh() drops cached pages (Back would show the old balance); replace takes the filled-in
+  // form out of history, so Back can't land on it and send the payment again.
+  refresh();
+  redirect(`${ctx.base}?settled=1`, RedirectType.replace);
 }
 
 export async function deleteSettlement(f: FormData) {
@@ -97,5 +114,6 @@ export async function saveBudget(_: ActionState, f: FormData): Promise<ActionSta
   if (!can(ctx, "expense.add")) return { error: "Your role can't create budgets in this group" };
   const { data, error } = await db.insert("budgets", { ...row, created_by: ctx.member.id }).select("id").single();
   if (error || !data) return { error: error?.message ?? "Couldn't create" };
+  refresh();
   redirect(`${ctx.base}/budgets/${(data as { id: string }).id}`);
 }

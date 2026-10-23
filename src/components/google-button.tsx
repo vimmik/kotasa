@@ -18,7 +18,7 @@ function GoogleG() {
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 /** "Continue with Google". New accounts go through /welcome afterwards. */
-export function GoogleButton({ next = "/me", signup = false }: { next?: string; signup?: boolean }) {
+export function GoogleButton({ next = "/start", signup = false }: { next?: string; signup?: boolean }) {
   const label = signup ? "Sign up with Google" : "Continue with Google";
   const redirect = (
     <form action={loginWithGoogle}>

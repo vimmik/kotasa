@@ -64,7 +64,11 @@ Product decisions Kavi made (don't change without asking):
 - `cookies()`, `params`, `searchParams` are **async** — always `await`.
 - Typed helpers `PageProps<"/route">` / `LayoutProps<"/route">` come from `next typegen`
   (runs during build/dev). If `tsc` says `Cannot find name 'PageProps'`, run `npx next typegen` first.
-- After a mutation in a server action call `refresh()` from `next/cache` (no `use cache` is used anywhere).
+- After a mutation in a server action call `refresh()` from `next/cache` (no `use cache` is used anywhere),
+  **also right before a `redirect()`**: without it the redirect can show the cached old page (Settle looked like it
+  did nothing, people tapped again and paid twice).
+- Payments go through `saveSettlement` (lib/ledger.ts) -> `record_settlement` RPC (20261023): a per-form
+  `client_key` makes a double submit save once, and the same payment within 10 minutes needs a confirm tick.
 - Dev mode validates instant navigation. A layout's `<Suspense>` doesn't cover client navigations
   between its child pages, so every segment with a layout has its own `loading.tsx`
   (`g/[slug]/` and `g/[slug]/admin/`). Add one when you add a new layout.
@@ -90,7 +94,7 @@ Product decisions Kavi made (don't change without asking):
 ## Architecture
 ```
 src/proxy.ts                 refresh Supabase session; logged-out -> /login (with ?next= for /g/ and /join/)
-                             (public: /login /signup /setup /auth /b/); "/" -> /me when logged in
+                             (public: /login /signup /setup /auth /b/); "/" -> /start when logged in
 src/app/page.tsx             landing page for logged-out visitors (static). Logged-in people never see it.
                              Server-action redirects skip the proxy, so after login redirect to /me, never "/"
 src/app/privacy, terms       public legal pages (needed for Google brand verification); contact = BRAND.contactEmail
@@ -121,6 +125,9 @@ src/app/auth/callback/       Google: linked login -> done; else profile by verif
                              Logins: Me › Settings "Sign-in" card sets number + PIN or connects Google. A Google
                              sign-up that already had a phone account joins it with number + PIN (welcome step 1 or
                              settings): mergeNewProfileInto (lib/accounts.ts), only while the new one has no Me data
+src/app/start/route.ts       where a login lands (landingPath, lib/auth.ts): /me for people with Me data, else their
+                             last (or first) group's Home, else /me. Login actions resolve "/start" themselves (land()
+                             in actions/auth.ts) because a server-action redirect renders a page, not a route handler
 src/app/login, setup         setup = first-run only (first account + first group)
 src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,
@@ -157,7 +164,7 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   `last_org_id`. `profile_logins` — auth.users ↔ profiles, many-to-one. `method`: pin | google | email.
 - `orgs` — a group: `slug` (URL), `name`, `kind`, `plan`. `org_settings` (one row per org): modules,
   collector_id, billing_weekday (1=Mon), sms_send_hour, sms_enabled, sms_fee, sms_monthly_cap, sms_template
-  (must contain `{total}` and `{link}`). `org_roles` (key, label, permissions[]), `org_categories`,
+  (must contain `{total}` and `{link}`), `pay_note` (20261024, "How to pay", shown on Home and the bill when owing). `org_roles` (key, label, permissions[]), `org_categories`,
   `org_meal_slots` (key, label, cutoff), `org_invites`, `circles` + `circle_members` (phase 1b UI).
 - `members` — someone inside one group: `org_id`, `profile_id` (null = SMS-only guest), `role_key`,
   `status` active | pending | inactive, `phone` (SMS), `view_token` (24 hex, for `/b/<token>`).
@@ -202,7 +209,13 @@ Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize
 **Closing the books** (20261018, Admin › Close books, permission `books.close`): `close_books(org, through, by)` stores
 `group_balances` at that date in `org_closings` + `org_closing_balances` (frozen, never recalculated). With a close in
 force, `group_balances` = frozen balances, minus payments since between the same two people (they pay the frozen
-amount first, so they change nobody else's), plus everything else since (simplified on its own), netted per pair.
+amount first), then anything else new between those two nets against what's left; the rest since is simplified by
+`simplify_with_frozen` (20261023): a chain may run through a frozen amount only as its second step (W owes X something
+new, X has a frozen debt to Y -> W pays Y), so a frozen amount only changes when one of its two people pays, gets paid
+or is owed something new, and paying "the wrong person" or money going round in a circle cancels out. With no close in
+force it is exactly the 20261016 behaviour. A manual close is up to yesterday at most (today stays open); the Close
+books page previews the balances it will save (`?through=`). SQL was checked with PGlite + a fuzz test (nets always
+equal the raw ledger).
 Trigger `guard_closed_books` refuses any insert/update/delete of money rows dated on/before the close (`merge_members`
 bypasses it with `kotasa.allow_closed`); actions check first with `closedError()` (lib/closing.ts) for a clear message.
 Only an owner can reopen (deletes the latest close). `org_settings.auto_close`: the cron closes up to yesterday on the

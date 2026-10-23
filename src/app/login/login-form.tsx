@@ -17,7 +17,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [state, action] = useActionState(loginWithPin, null);
   const params = useSearchParams();
   const err = params.get("error");
-  const next = params.get("next") ?? "/me";
+  const next = params.get("next") ?? "/start";
 
   return (
     <div className="space-y-4">

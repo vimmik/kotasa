@@ -64,3 +64,9 @@ export async function expenseIconMap(orgId: string, expenseIds: string[]): Promi
   const icon = new Map(cats.map((c) => [c.key, c.icon]));
   return Object.fromEntries(((ex ?? []) as { id: string; category: string }[]).map((e) => [e.id, icon.get(e.category) ?? "receipt"]));
 }
+
+/** The group's "How to pay" note (20261024), or null. Reads "*" so it also works before the migration. */
+export async function getPayNote(orgId: string): Promise<string | null> {
+  const { data } = await orgDb(orgId).select("org_settings").maybeSingle();
+  return ((data as { pay_note?: string | null } | null)?.pay_note ?? "").trim() || null;
+}

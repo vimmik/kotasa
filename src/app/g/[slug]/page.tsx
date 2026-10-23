@@ -6,10 +6,10 @@ import { closedThrough } from "@/lib/closing";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { expenseIconMap, getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
-import { fmtDay, todayColombo } from "@/lib/time";
+import { fmtDay, isPastCutoff, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
-import { Avatar, EmptyState, Money } from "@/components/bits";
+import { Avatar, EmptyState, PayNote } from "@/components/bits";
 
 export default async function Home(props: PageProps<"/g/[slug]">) {
   const { slug } = await props.params;
@@ -22,7 +22,8 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
-    getLedgerFor(org.id, me.id, { limit: 12 }),
+    // Several lines make one item (one per person in an expense), so read more than are shown.
+    getLedgerFor(org.id, me.id, { limit: 40 }),
     meals
       ? orgDb(org.id).select("orders", "meal, item_name, qty").eq("person_id", me.id).eq("order_date", today)
       : Promise.resolve({ data: [] as { meal: string; item_name: string; qty: number }[] }),
@@ -35,6 +36,9 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const slotLabel = new Map(slots.map((s) => [s.key, s.label]));
   const b = summarize(me.id, pairs);
+  // Once every meal of the day is past its cutoff, point people at tomorrow instead.
+  const openSlots = slots.filter((s) => !s.archived);
+  const mealsClosed = openSlots.length > 0 && openSlots.every((s) => isPastCutoff(today, s.cutoff));
   const icons = await expenseIconMap(
     org.id,
     rows.filter((r) => r.source === "expense").map((r) => r.ref_id),
@@ -85,46 +89,49 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
         </div>
       </section>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">You owe</h2>
-          {b.owes.length === 0 ? (
-            <p className="card text-sm text-muted">Nothing — nice.</p>
-          ) : (
-            <ul className="card divide-y divide-line py-1">
-              {b.owes.map((o) => (
-                <li key={o.personId} className="flex items-center gap-3 py-2.5">
-                  <Avatar name={names.get(o.personId) ?? "?"} />
-                  <span className="min-w-0 flex-1 truncate font-semibold">{names.get(o.personId)}</span>
-                  <Money value={-o.amount} signed className="text-sm" />
-                  <Link href={`${base}/settle?to=${o.personId}&amount=${o.amount}`} className="btn-ghost px-3 py-1 text-xs">
-                    Settle
-                  </Link>
-                </li>
-              ))}
-            </ul>
+      {(b.owes.length > 0 || b.owed.length > 0) && (
+        <div className="grid gap-6 md:grid-cols-2">
+          {b.owes.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-medium text-muted">You owe</h2>
+              <ul className="card divide-y divide-line py-1">
+                {b.owes.map((o) => (
+                  <BalanceRow
+                    key={o.personId}
+                    name={names.get(o.personId) ?? "?"}
+                    line={`You owe ${rs(o.amount)}`}
+                    tone="text-danger"
+                    href={`${base}/settle?to=${o.personId}&amount=${o.amount}`}
+                    action="Pay"
+                  />
+                ))}
+              </ul>
+            </section>
           )}
-        </section>
-        <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">Owes you</h2>
-          {b.owed.length === 0 ? (
-            <p className="card text-sm text-muted">Nobody owes you right now.</p>
-          ) : (
-            <ul className="card divide-y divide-line py-1">
-              {b.owed.map((o) => (
-                <li key={o.personId} className="flex items-center gap-3 py-2.5">
-                  <Avatar name={names.get(o.personId) ?? "?"} />
-                  <span className="min-w-0 flex-1 truncate font-semibold">{names.get(o.personId)}</span>
-                  <Money value={o.amount} signed className="text-sm" />
-                  <Link href={`${base}/settle?from=${o.personId}&amount=${o.amount}`} className="btn-ghost px-3 py-1 text-xs">
-                    Got paid
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {b.owes.length > 0 && ctx.settings.pay_note?.trim() && (
+            <div className="md:col-span-2">
+              <PayNote note={ctx.settings.pay_note.trim()} />
+            </div>
           )}
-        </section>
-      </div>
+          {b.owed.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-medium text-muted">Owes you</h2>
+              <ul className="card divide-y divide-line py-1">
+                {b.owed.map((o) => (
+                  <BalanceRow
+                    key={o.personId}
+                    name={names.get(o.personId) ?? "?"}
+                    line={`Owes you ${rs(o.amount)}`}
+                    tone="text-brand"
+                    href={`${base}/settle?from=${o.personId}&amount=${o.amount}`}
+                    action="Got paid"
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
 
       {meals && (
       <Link href={`${base}/meals`} className="card-link flex items-center gap-3">
@@ -139,7 +146,9 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                   ...(todays ?? []).map((o) => `${slotLabel.get(o.meal) ?? o.meal}: ${o.item_name}${o.qty > 1 ? ` ×${o.qty}` : ""}`),
                   ...((myJoins ?? []) as { meal: string }[]).map((j) => `${slotLabel.get(j.meal) ?? j.meal}: shared bill`),
                 ].join(" · ")
-              : "Nothing ordered yet. Pick yours for today."}
+              : mealsClosed
+                ? "Ordering for today is closed. Plan your next meals."
+                : "Nothing ordered yet. Pick yours for today."}
           </p>
         </div>
         <ArrowRight size={18} className="text-muted" aria-hidden="true" />
@@ -159,7 +168,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
           />
         ) : (
           <div className="card py-1">
-            <ActivityList rows={rows} me={me.id} names={names} icons={icons} base={base} />
+            <ActivityList rows={rows} me={me.id} names={names} icons={icons} base={base} max={8} />
           </div>
         )}
       </section>
@@ -175,5 +184,21 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
         <ArrowRight size={18} className="text-muted" aria-hidden="true" />
       </Link>
     </div>
+  );
+}
+
+/** One person you owe or who owes you: the amount sits under the name, so long names fit on a phone. */
+function BalanceRow({ name, line, tone, href, action }: { name: string; line: string; tone: string; href: string; action: string }) {
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <Avatar name={name} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">{name}</p>
+        <p className={`text-sm font-medium tabular-nums ${tone}`}>{line}</p>
+      </div>
+      <Link href={href} className="btn-ghost shrink-0 px-3 py-1.5 text-xs">
+        {action}
+      </Link>
+    </li>
   );
 }

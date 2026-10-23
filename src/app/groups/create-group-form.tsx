@@ -1,13 +1,22 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Plus } from "@phosphor-icons/react/ssr";
 import { createGroupAction } from "@/app/actions/auth";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { ORG_KINDS, type OrgKind } from "@/lib/types";
 
-export function CreateGroupForm() {
+/** `collapsed`: people who already have a group see a button first, not the whole form. */
+export function CreateGroupForm({ collapsed = false }: { collapsed?: boolean }) {
   const [state, action] = useActionState(createGroupAction, null);
   const [kind, setKind] = useState<OrgKind>("office");
+  const [open, setOpen] = useState(!collapsed);
+  if (!open)
+    return (
+      <button type="button" className="btn-ghost w-full" onClick={() => setOpen(true)}>
+        <Plus size={16} aria-hidden="true" /> Create another group
+      </button>
+    );
   return (
     <ActionForm action={action} className="card space-y-4">
       <div>
@@ -16,7 +25,7 @@ export function CreateGroupForm() {
       </div>
       <div>
         <label className="label" htmlFor="group-name">Name</label>
-        <input id="group-name" name="name" maxLength={60} className="input" placeholder="Colombo office" autoComplete="off" required />
+        <input id="group-name" name="name" maxLength={60} className="input" placeholder="Colombo office" autoComplete="off" required autoFocus={collapsed} />
       </div>
       <fieldset>
         <legend className="label">What is it for?</legend>

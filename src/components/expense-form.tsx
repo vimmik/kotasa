@@ -8,6 +8,7 @@ import { ICONS } from "@/components/bits";
 import { OrgField } from "@/components/org-field";
 import { splitEqually } from "@/lib/split";
 import { BRAND } from "@/lib/brand";
+import { addDays, fmtDay } from "@/lib/time";
 import { rs, round2, type Budget, type Category, type Copayer, type Expense, type MemberWithLogin } from "@/lib/types";
 
 type Props = {
@@ -21,15 +22,24 @@ type Props = {
   shares?: Record<string, number>;
   copayers?: Copayer[];
   defaultBudget?: string;
+  /** Last closed date (YYYY-MM-DD): nothing can be dated on or before it. */
+  closedThrough?: string | null;
 };
 
-export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget }: Props) {
+/** Groups this size or smaller start a new expense split between everyone. */
+const SPLIT_ALL_UP_TO = 8;
+
+export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget, closedThrough = null }: Props) {
   const [state, action] = useActionState(saveExpense, null);
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [category, setCategory] = useState(expense?.category ?? categories[0]?.key ?? "other");
   const [paidBy, setPaidBy] = useState(expense?.paid_by ?? me);
   const [splitType, setSplitType] = useState<"equal" | "custom">(expense?.split_type ?? "equal");
-  const [selected, setSelected] = useState<Set<string>>(new Set(shares ? Object.keys(shares) : [me]));
+  // A new expense in a small group is usually for everyone; in a big one (an office floor) it isn't,
+  // so there you start with just yourself and tick the others.
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(shares ? Object.keys(shares) : people.length <= SPLIT_ALL_UP_TO ? people.map((p) => p.id) : [me]),
+  );
   const [custom, setCustom] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(shares ?? {}).map(([k, v]) => [k, String(v)])),
   );
@@ -94,7 +104,16 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
             </div>
             <div>
               <label className="label" htmlFor="expense_date">Date</label>
-              <input id="expense_date" name="expense_date" type="date" defaultValue={expense?.expense_date ?? today} className="input" required />
+              <input
+                id="expense_date"
+                name="expense_date"
+                type="date"
+                defaultValue={expense?.expense_date ?? today}
+                min={closedThrough ? addDays(closedThrough, 1) : undefined}
+                className="input"
+                required
+              />
+              {closedThrough && <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}</p>}
             </div>
           </div>
           <div>

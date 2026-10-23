@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   Ticket,
   Users,
+  Wallet,
 } from "@phosphor-icons/react/ssr";
 import { rs } from "@/lib/types";
 
@@ -81,6 +82,21 @@ export function CategoryIcon({ icon, size = 18 }: { icon?: string | null; size?:
     <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
       <Icon size={size} aria-hidden="true" />
     </span>
+  );
+}
+
+/** The group's "How to pay" note, for people who owe (Home, public bill). */
+export function PayNote({ note }: { note: string }) {
+  return (
+    <section className="card flex items-start gap-3">
+      <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
+        <Wallet size={18} weight="duotone" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="font-semibold">How to pay</h2>
+        <p className="text-sm break-words whitespace-pre-line">{note}</p>
+      </div>
+    </section>
   );
 }
 

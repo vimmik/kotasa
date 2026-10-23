@@ -54,6 +54,8 @@ export type OrgSettings = {
   simplify_debts?: boolean;
   /** close the books every billing day, through the day before; missing before the 20261018 migration */
   auto_close?: boolean;
+  /** "How to pay" (bank account, cash to whom…), shown on the bill and Home; missing before 20261024 */
+  pay_note?: string | null;
 };
 
 /** Someone inside one group. profile_id null = SMS-only guest. */
@@ -183,7 +185,8 @@ export type LedgerRow = {
   circle_id: string | null;
 };
 
-export type ActionState = { ok?: boolean; error?: string; message?: string } | null;
+/** `confirm`: the action stopped to ask first (e.g. "duplicate"); the form resends with a yes. */
+export type ActionState = { ok?: boolean; error?: string; message?: string; confirm?: string } | null;
 
 /** "Rs. 450" for whole rupees, "Rs. 247.50" otherwise (never "Rs. 247.5"). */
 export const rs = (n: number) => {

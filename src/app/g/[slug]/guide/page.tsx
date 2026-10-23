@@ -52,7 +52,7 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
       title: "Settle up",
       body: "Paid someone back in cash or by bank transfer? Record it so the debt clears.",
       steps: [
-        "On Home, tap Settle next to someone you owe.",
+        "On Home, tap Pay next to someone you owe (or Pay on the expense itself).",
         "The amount is filled in. Change it if you paid part of it.",
         "Save. Your balance with them goes down by that amount.",
         "Got paid? Tap Got paid next to the person who paid you.",
@@ -253,12 +253,21 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             </Faq>
           )}
           <Faq q="Why can't I change an old expense or payment?">
-            The group&apos;s books are closed up to a date. Balances up to then are frozen as they were, so a payment or a
-            late change can&apos;t move what other people were told. Anything after that date works as usual. An owner can
-            reopen the latest close if something needs fixing.
+            The group&apos;s books are closed up to a date. Balances up to then are saved as they were, so a late change
+            can&apos;t move what other people were told. A saved amount between two people only changes when one of them
+            pays, gets paid or is owed something new. Anything after that date works as usual, and today is never closed.
+            An owner can reopen the latest close if something needs fixing.
+          </Faq>
+          <Faq q="I tapped Record payment twice. Is it saved twice?">
+            No. One payment form saves once, however many times it is sent. If you record the same payment again within 10
+            minutes, Kotasa asks whether it really is a second payment before saving it.
+          </Faq>
+          <Faq q="Where do I send the money?">
+            To the person Kotasa says you owe, by cash or bank transfer. If your group added a How to pay note (bank
+            details, who collects cash), it shows on Home and on your bill link whenever you owe something.
           </Faq>
           <Faq q="I paid someone outside the app. What now?">
-            Record it with Settle. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
+            Tap Pay next to them on Home, or record it from Account › Record a payment. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>
           <Faq q="I share several groups with the same person. Where's the total?">
             Open Your groups (the group switcher). Across all your groups lists everyone you owe or who owes you, with
