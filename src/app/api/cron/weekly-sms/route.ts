@@ -4,7 +4,7 @@ import { closeBooks, closedThrough } from "@/lib/closing";
 import { sendWeeklySms, type SmsRunSummary } from "@/lib/sms";
 import { addDays, isoWeekday, nowColombo, weekStart } from "@/lib/time";
 
-// Called by Vercel Cron (see vercel.json) or Supabase pg_cron.
+// Called every hour by Supabase pg_cron (migration 20261027000000_hourly_sms_cron).
 // Sends only on the billing weekday, at/after the configured hour,
 // and skips anyone who already got this week's SMS (e.g. sent manually earlier).
 export async function GET(request: NextRequest) {

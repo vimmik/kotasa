@@ -222,6 +222,7 @@ export function BillingForm({ s, people }: { s: OrgSettings; people: { id: strin
       <div>
         <label className="label" htmlFor="sms_send_hour">From hour (0–23)</label>
         <input id="sms_send_hour" name="sms_send_hour" type="number" min={0} max={23} defaultValue={s.sms_send_hour} className="input" />
+        <p className="mt-1 text-xs text-muted">Sri Lanka time. 21 sends at 9:00 PM on the day above.</p>
       </div>
       <div>
         <label className="label" htmlFor="sms_fee">SMS fee per person (Rs.)</label>
