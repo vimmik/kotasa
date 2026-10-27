@@ -52,7 +52,7 @@ Product decisions Kavi made (don't change without asking):
   moves on phones or with reduced motion. `body` must stay transparent (only `html` has the bg) or it hides this layer.
 - Buttons are 3D (lit edge, lip, coloured shadow). `glass` + `bezel` utilities are for fixed-size surfaces only
   (auth screens). Don't put `backdrop-filter` on scrolling lists. Login/setup use `AuthShell`.
-- Vercel hosting + Vercel Cron. SMS via Text.lk (Sri Lanka, pay-as-you-go, no monthly fee; Kavi chose it
+- Vercel hosting; the weekly SMS route is called hourly by Supabase pg_cron (20261027, URL + secret in Vault). SMS via Text.lk (Sri Lanka, pay-as-you-go, no monthly fee; Kavi chose it
   2026-10-10 over Notify.lk's Rs 3000 + monthly minimum). Notify.lk stays as `SMS_PROVIDER=notifylk`.
   Admin SMS page also has a free "Send on WhatsApp" (`wa.me`) link per person: no fee, not logged.
 
@@ -129,7 +129,7 @@ src/app/start/route.ts       where a login lands (landingPath, lib/auth.ts): /me
                              last (or first) group's Home, else /me. Login actions resolve "/start" themselves (land()
                              in actions/auth.ts) because a server-action redirect renders a page, not a route handler
 src/app/login, setup         setup = first-run only (first account + first group)
-src/app/api/cron/weekly-sms  Vercel cron (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
+src/app/api/cron/weekly-sms  hourly pg_cron at :00 Colombo (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,
                              personal.ts (Me; profile comes from the session only)
 src/lib/

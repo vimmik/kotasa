@@ -93,7 +93,7 @@ A payment from A to B is stored as *B owes A*, which cancels A's debt.
 | Framework | Next.js 16 (App Router, Cache Components, server actions), React 19, TypeScript |
 | Styling | Tailwind CSS v4 (CSS-first config), Phosphor icons, self-hosted Geist font |
 | Data and auth | Supabase: Postgres, Auth, row-level security |
-| Hosting | Vercel, with Vercel Cron for the weekly SMS |
+| Hosting | Vercel, with Supabase pg_cron calling the weekly SMS route every hour |
 | SMS | [Text.lk](https://text.lk) (Sri Lanka). Notify.lk is also supported. |
 
 ## Getting started
@@ -141,7 +141,7 @@ Open <http://localhost:3000/setup> to create the first account and the first gro
 | `NEXT_PUBLIC_APP_URL` | Public URL of the app, used in bill links and sign-in redirects |
 | `AUTH_EMAIL_DOMAIN` | Internal email domain for PIN logins (for example `kotasa.local`) |
 | `NEXT_PUBLIC_GOOGLE_LOGIN` | `on` shows the Google button, `off` hides it |
-| `CRON_SECRET` | Bearer token Vercel Cron sends to `/api/cron/weekly-sms` |
+| `CRON_SECRET` | Bearer token pg_cron sends to `/api/cron/weekly-sms` (also stored in Supabase Vault) |
 | `SMS_PROVIDER` | `textlk` (default) or `notifylk` |
 | `TEXTLK_API_KEY`, `TEXTLK_SENDER_ID` | Text.lk API token and approved sender ID |
 | `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID` | Only needed when `SMS_PROVIDER=notifylk` |
@@ -152,8 +152,10 @@ Open <http://localhost:3000/setup> to create the first account and the first gro
 
 1. Import the repository into Vercel and add every environment variable above.
 2. Set `NEXT_PUBLIC_APP_URL` to the production URL.
-3. `vercel.json` runs the weekly SMS cron every day at 09:30 UTC (15:00 in Sri Lanka). Each group is only
-   messaged on its own billing day, after its send hour.
+3. Supabase pg_cron calls `/api/cron/weekly-sms` every hour at :30 UTC (:00 in Sri Lanka). Each group is only
+   messaged on its own billing day, from its send hour. In the Supabase SQL editor, store the URL and secret once:
+   `select vault.create_secret('https://<app domain>', 'kotasa_app_url');` and
+   `select vault.create_secret('<CRON_SECRET>', 'kotasa_cron_secret');`. Without them the job does nothing.
 
 ### Google sign-in (optional)
 
