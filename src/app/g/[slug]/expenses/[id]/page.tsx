@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PencilSimple, Trash } from "@phosphor-icons/react/ssr";
+import { CopySimple, PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 import { can, requireMember } from "@/lib/auth";
 import { closedThrough } from "@/lib/closing";
 import { getPairs, listMembers } from "@/lib/ledger";
@@ -156,6 +156,11 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
         <Link href={`${base}/expenses`} className="btn-ghost">
           Back
         </Link>
+        {can(ctx, "expense.add") && !expense.meal && (
+          <Link href={`${base}/expenses/new?from=${id}`} className="btn-ghost">
+            <CopySimple size={15} aria-hidden="true" /> Add again
+          </Link>
+        )}
         {canEdit && (
           <>
             <Link href={`${base}/expenses/${id}?edit=1`} className="btn-ghost">

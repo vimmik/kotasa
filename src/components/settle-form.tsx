@@ -6,6 +6,7 @@ import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
 import { addDays, fmtDay } from "@/lib/time";
 import { rs } from "@/lib/types";
+import { PayTo } from "@/components/share";
 
 type Props = {
   me: string;
@@ -116,9 +117,9 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
           ))}
         </select>
         {direction === "paid" && payTo[other] && (
-          <p className="mt-2 rounded-xl bg-surface-2 px-3 py-2 text-sm break-words">
-            <span className="text-muted">Pay to:</span> <b>{payTo[other]}</b>
-          </p>
+          <div className="mt-2 rounded-xl bg-surface-2 px-3 py-2">
+            <PayTo details={payTo[other]} className="text-sm" />
+          </div>
         )}
       </div>
       )}

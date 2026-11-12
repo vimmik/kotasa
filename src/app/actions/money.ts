@@ -59,7 +59,8 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
   // refresh() drops cached pages (Back would show the old balance); replace takes the filled-in
   // form out of history, so Back can't land on it and send the payment again.
   refresh();
-  redirect(`${ctx.base}?settled=1`, RedirectType.replace);
+  // When I paid someone, Home offers a "Tell them" message.
+  redirect(`${ctx.base}?settled=1${me === from ? `&paid=${to}&amt=${amount}` : ""}`, RedirectType.replace);
 }
 
 export async function deleteSettlement(f: FormData) {

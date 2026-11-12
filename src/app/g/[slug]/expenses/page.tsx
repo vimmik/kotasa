@@ -1,5 +1,6 @@
+import Form from "next/form";
 import Link from "next/link";
-import { Plus } from "@phosphor-icons/react/ssr";
+import { ChartBar, MagnifyingGlass, Plus, X } from "@phosphor-icons/react/ssr";
 import { can, requireMember } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
@@ -10,6 +11,9 @@ import { rs, type Expense, type ExpenseShare } from "@/lib/types";
 import { CategoryIcon, EmptyState, PageHeader } from "@/components/bits";
 import { WeekNav } from "@/components/week-nav";
 
+/** Most results a search shows; older matches need a more exact word. */
+const SEARCH_LIMIT = 60;
+
 export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses">) {
   const { slug } = await props.params;
   const ctx = await requireMember(slug);
@@ -17,12 +21,16 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
   const sp = await props.searchParams;
   const w = typeof sp.week === "string" && isValidDate(sp.week) ? weekStart(sp.week) : weekStart(todayColombo());
   const mine = sp.show !== "all";
+  // Search looks through every week (title and note). Characters that mean something in the
+  // filter syntax are dropped, so the text can only ever be a search word.
+  const q = (typeof sp.q === "string" ? sp.q : "").replace(/[%_,()*\\"]/g, " ").trim().slice(0, 40);
 
+  const base_ = orgDb(org.id).select("expenses", "*, expense_shares(person_id, amount)");
   const [{ data }, people, cats] = await Promise.all([
-    orgDb(org.id)
-      .select("expenses", "*, expense_shares(person_id, amount)")
-      .gte("expense_date", w)
-      .lte("expense_date", addDays(w, 6))
+    (q
+      ? base_.or(`title.ilike.%${q}%,note.ilike.%${q}%`).limit(SEARCH_LIMIT)
+      : base_.gte("expense_date", w).lte("expense_date", addDays(w, 6))
+    )
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false }),
     listMembers(org.id, { includeInactive: true }),
@@ -39,7 +47,7 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
 
   const tab = (val: "mine" | "all", label: string) => (
     <Link
-      href={`${base}/expenses?week=${w}${val === "all" ? "&show=all" : ""}`}
+      href={`${base}/expenses?${q ? `q=${encodeURIComponent(q)}` : `week=${w}`}${val === "all" ? "&show=all" : ""}`}
       aria-current={(val === "mine") === mine ? "page" : undefined}
       className={`rounded-[10px] px-3 py-1.5 ${(val === "mine") === mine ? "bg-surface text-ink shadow-[var(--shadow)]" : "text-muted"}`}
     >
@@ -51,7 +59,7 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
     <div className="stagger space-y-4">
       <PageHeader
         title="Expenses"
-        sub={`${rows.length} this week · ${rs(total)}`}
+        sub={q ? `${rows.length}${rows.length >= SEARCH_LIMIT ? "+" : ""} found for “${q}” · ${rs(total)}` : `${rows.length} this week · ${rs(total)}`}
         action={
           can(ctx, "expense.add") && (
             <Link href={`${base}/expenses/new`} className="btn-primary">
@@ -65,11 +73,41 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
           {tab("mine", "Involving me")}
           {tab("all", "Everyone")}
         </div>
-        <WeekNav base={`${base}/expenses${mine ? "?" : "?show=all&"}`} ws={w} />
+        {!q && <WeekNav base={`${base}/expenses${mine ? "?" : "?show=all&"}`} ws={w} />}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Form action={`${base}/expenses`} className="relative min-w-0 flex-1">
+          {!mine && <input type="hidden" name="show" value="all" />}
+          <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            key={q}
+            maxLength={40}
+            enterKeyHint="search"
+            placeholder="Search all expenses"
+            aria-label="Search all expenses"
+            className="input pl-9"
+          />
+        </Form>
+        {q && (
+          <Link href={`${base}/expenses${mine ? "" : "?show=all"}`} className="btn-ghost size-10 shrink-0 p-0" aria-label="Clear search">
+            <X size={16} aria-hidden="true" />
+          </Link>
+        )}
+        <Link href={`${base}/insights`} className="btn-ghost shrink-0 px-3" aria-label="Insights: where the money went">
+          <ChartBar size={16} aria-hidden="true" /> <span className="hidden sm:inline">Insights</span>
+        </Link>
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState title="No expenses this week" body="Rides, snacks, gifts — add it and split it in seconds." />
+        q ? (
+          <EmptyState title={`Nothing found for “${q}”`} body={mine ? "Try another word, or look under Everyone." : "Try another word."} />
+        ) : (
+          <EmptyState title="No expenses this week" body="Rides, snacks, gifts — add it and split it in seconds." />
+        )
       ) : (
         <ul className="card divide-y divide-line py-1">
           {rows.map((e) => {
@@ -100,7 +138,7 @@ export default async function ExpensesPage(props: PageProps<"/g/[slug]/expenses"
           })}
         </ul>
       )}
-      <p className="text-center text-xs text-muted">{fmtWeek(w)}</p>
+      <p className="text-center text-xs text-muted">{q ? "Searched every week" : fmtWeek(w)}</p>
     </div>
   );
 }

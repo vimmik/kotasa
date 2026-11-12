@@ -28,6 +28,10 @@ type Props = {
   closedThrough?: string | null;
   /** Show "Scan a bill" (an Anthropic API key is set) */
   scanEnabled?: boolean;
+  /** `expense` is a template for a new one ("Add again"), not the expense being edited */
+  copy?: boolean;
+  /** Sets of people this person recently split with, newest first, for one-tap "same people again" */
+  recentSets?: string[][];
 };
 
 type SplitMode = "equal" | "items" | "custom";
@@ -39,7 +43,8 @@ const num = (v: string) => v.replace(/[^\d.]/g, "");
 /** Groups this size or smaller start a new expense split between everyone. */
 const SPLIT_ALL_UP_TO = 8;
 
-export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget, closedThrough = null, scanEnabled = false }: Props) {
+export function ExpenseForm({ me, people, budgets, categories, today, canAddGuests, expense, shares, copayers, defaultBudget, closedThrough = null, scanEnabled = false, copy = false, recentSets = [] }: Props) {
+  const editing = !!expense && !copy;
   const [state, action] = useActionState(saveExpense, null);
   const [title, setTitle] = useState(expense?.title ?? "");
   const [date, setDate] = useState(expense?.expense_date ?? today);
@@ -140,7 +145,7 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
     <div className="space-y-4">
       <ActionForm action={action} className="space-y-4">
         <OrgField />
-        {expense && <input type="hidden" name="id" value={expense.id} />}
+        {editing && <input type="hidden" name="id" value={expense.id} />}
         <input type="hidden" name="category" value={category} />
         <input type="hidden" name="split_type" value={splitType} />
         {splitType === "items" ? (
@@ -323,6 +328,29 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
               None
             </button>
           </div>
+
+          {recentSets.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted">Same as before:</span>
+              {recentSets.map((set) => {
+                const on = set.length === selected.size && set.every((id) => selected.has(id));
+                const others = set.filter((id) => id !== me).map((id) => nameOf(id).split(" ")[0]);
+                return (
+                  <button
+                    key={set.join()}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setSelected(new Set(set))}
+                    className={`rounded-lg border px-2 py-1 text-xs font-semibold ${on ? "border-brand bg-brand-soft text-brand-strong" : "border-line text-muted hover:text-ink"}`}
+                  >
+                    {set.includes(me) ? "You, " : ""}
+                    {others.slice(0, 3).join(", ")}
+                    {others.length > 3 ? ` +${others.length - 3}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <ul className="divide-y divide-line">
             {shown.map((p) => {
@@ -531,7 +559,7 @@ export function ExpenseForm({ me, people, budgets, categories, today, canAddGues
         <FormMessage state={state} />
         <div className="sticky bottom-20 z-10 md:bottom-4">
           <SubmitButton className="btn-primary w-full py-3 text-base shadow-lg" pendingText="Saving…">
-            {expense ? "Save changes" : `Add expense${total ? ` · ${rs(total)}` : ""}`}
+            {editing ? "Save changes" : `Add expense${total ? ` · ${rs(total)}` : ""}`}
           </SubmitButton>
         </div>
       </ActionForm>

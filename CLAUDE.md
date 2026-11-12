@@ -118,10 +118,15 @@ src/app/groups/              your groups, pending joins, create a group, "Across
 src/app/join/[code]/         accept an invite link
 src/app/g/[slug]/            one group (layout: requireMember(slug), group switcher, nav by modules/perms)
   page.tsx                   home: net balance, you owe / owes you, today's meals, activity
-  expenses/ new/ [id]/       list (week + "involving me"/"everyone"), add, detail/edit (?edit=1)
+  expenses/ new/ [id]/       list (week + "involving me"/"everyone", ?q= searches title+note over all weeks), add
+                             (?from=ID = "Add again" from an earlier expense; "Same as before" chips = the people
+                             sets of my last expenses), detail/edit (?edit=1)
   meals/                     weekly meal picker (module)
   budgets/ [id]/             budgets with limit + progress (module)
   settle/                    record a payment (?to=ID / ?from=ID &amount=)
+  insights/                  one month of group spending (?month=YYYY-MM): totals vs last month, by category
+                             (your share / everyone else), who paid, biggest. Expenses + meal orders; not balances,
+                             payments or SMS fees. View = components/insights-view.tsx
   account/                   profile, theme, PIN, bill link, history, leave group
   guide/                     "How Kotasa works": idea, benefits, balance example, per-feature steps (only enabled
                              modules), admin note, FAQ. Linked from Home and Account. Keep it in sync with features.
@@ -160,6 +165,10 @@ src/lib/
   receipt.ts                 scanReceipt: bill photo -> items/charges/discounts via Claude (structured output).
                              Off unless ANTHROPIC_API_KEY is set; receipt_scans caps 40/group, 15/person a day
   pay-details.ts             payDetailsFor(orgId): member's bank details, else their profile's
+  messages.ts                remindText / paidText: ready chat messages (Home bell "Remind", "Tell them" after a
+                             payment, "Paid? Tell X" on the public bill). Sent through components/share.tsx
+                             ShareButton (share sheet, else wa.me with no number), so no member ever sees another
+                             member's phone number or bill link. PayTo (same file) = bank details + copy account no.
   time.ts                    Asia/Colombo dates as "YYYY-MM-DD" strings, weeks start Monday
   phone.ts                   normalize to 94XXXXXXXXX, displayPhone, PIN email helper
   brand.ts                   BRAND name/tagline/colors, appUrl()
