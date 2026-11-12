@@ -6,6 +6,7 @@ import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
 import { addDays, fmtDay } from "@/lib/time";
 import { rs } from "@/lib/types";
+import { PayTo } from "@/components/share";
 
 type Props = {
   me: string;
@@ -19,6 +20,8 @@ type Props = {
   today: string;
   /** Last closed date (YYYY-MM-DD): payments can't be dated on or before it. */
   closedThrough?: string | null;
+  /** bank details of the people you owe, by member id */
+  payTo?: Record<string, string>;
 };
 
 type Direction = "paid" | "received" | "between";
@@ -31,7 +34,7 @@ function newKey() {
   );
 }
 
-export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [], closedThrough = null }: Props) {
+export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [], closedThrough = null, payTo = {} }: Props) {
   const [state, action] = useActionState(recordSettlement, null);
   const [key] = useState(newKey);
   const [direction, setDirection] = useState<Direction>(initial.direction);
@@ -113,6 +116,11 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
             </option>
           ))}
         </select>
+        {direction === "paid" && payTo[other] && (
+          <div className="mt-2 rounded-xl bg-surface-2 px-3 py-2">
+            <PayTo details={payTo[other]} className="text-sm" />
+          </div>
+        )}
       </div>
       )}
 

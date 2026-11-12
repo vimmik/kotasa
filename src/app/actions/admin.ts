@@ -93,6 +93,11 @@ export async function saveMember(_: ActionState, f: FormData): Promise<ActionSta
     if (status === "inactive" && target.role_key === "owner" && (await ownerCount(ctx.org.id)) <= 1)
       return { error: "A group needs at least one owner" };
   }
+  // Bank details: only for a guest. People with the app set their own (Account page), so an admin
+  // can't send someone's payments to another account. The field exists only after 20261112.
+  const payDetails = str(f, "pay_details").replace(/\s+/g, " ");
+  if (payDetails.length > 120) return { error: "Keep the bank details under 120 characters" };
+  const setPay = f.has("pay_details") && !!target && !target.profile_id;
   const nextRole = roleKey || target?.role_key || "member";
   if (nextRole !== (target?.role_key ?? "member")) {
     if (!can(ctx, "members.manage")) return denied("change roles");
@@ -106,6 +111,7 @@ export async function saveMember(_: ActionState, f: FormData): Promise<ActionSta
     email,
     role_key: nextRole,
     ...(target && target.status !== "pending" ? { status } : {}),
+    ...(setPay ? { pay_details: payDetails || null } : {}),
   };
   let member: Member;
   if (target) {
@@ -320,6 +326,10 @@ export async function saveBilling(_: ActionState, f: FormData): Promise<ActionSt
   const cap = Number(str(f, "sms_monthly_cap"));
   const tpl = str(f, "sms_template");
   const collector = str(f, "collector_id") || null;
+  const frequency = str(f, "sms_frequency") || "weekly";
+  const monthday = Number(str(f, "billing_monthday") || 31);
+  if (!["daily", "weekly", "monthly"].includes(frequency)) return { error: "Pick how often the SMS goes out" };
+  if (!(Number.isInteger(monthday) && monthday >= 1 && monthday <= 31)) return { error: "Pick the day of the month" };
   if (!(day >= 1 && day <= 7)) return { error: "Pick the billing day" };
   if (!(hour >= 0 && hour <= 23)) return { error: "Hour must be 0–23" };
   if (!(fee >= 0)) return { error: "SMS fee must be 0 or more" };
@@ -334,6 +344,8 @@ export async function saveBilling(_: ActionState, f: FormData): Promise<ActionSt
   const { error } = await orgDb(ctx.org.id).update("org_settings", {
     // Only once the 20261024 column exists (the field is shown only then).
     ...(ctx.settings.pay_note !== undefined ? { pay_note: payNote } : {}),
+    // Only once the 20261112 columns exist (the fields are shown only then).
+    ...(ctx.settings.sms_frequency !== undefined ? { sms_frequency: frequency, billing_monthday: monthday } : {}),
     collector_id: collector,
     billing_weekday: day,
     sms_send_hour: hour,

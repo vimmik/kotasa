@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenText, ClockCounterClockwise, SignOut, SquaresFour } from "@phosphor-icons/react/ssr";
+import { BookOpenText, ClockCounterClockwise, DownloadSimple, SignOut, SquaresFour } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
 import { getLedgerFor, listMembers } from "@/lib/ledger";
@@ -11,7 +11,7 @@ import { logout } from "@/app/actions/auth";
 import { ActivityList } from "@/components/activity";
 import { Avatar, EmptyState } from "@/components/bits";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { CopyLink, LeaveGroupForm, PinForm } from "@/components/account-forms";
+import { CopyLink, LeaveGroupForm, PayDetailsForm, PinForm } from "@/components/account-forms";
 import { DevelopedBy } from "@/components/brand";
 
 export default async function AccountPage(props: PageProps<"/g/[slug]/account">) {
@@ -75,6 +75,16 @@ export default async function AccountPage(props: PageProps<"/g/[slug]/account">)
         <ThemeToggle />
       </section>
 
+      {profile.pay_details !== undefined && (
+        <section className="card space-y-3">
+          <div>
+            <h2 className="font-semibold">How people pay you</h2>
+            <p className="text-sm text-muted">When someone owes you, they see these details so they know where to send the money.</p>
+          </div>
+          <PayDetailsForm general={profile.pay_details ?? null} group={{ name: org.name, own: me.pay_details ?? null }} />
+        </section>
+      )}
+
       <section className="card space-y-3">
         <div>
           <h2 className="font-semibold">Phone + PIN login</h2>
@@ -100,9 +110,17 @@ export default async function AccountPage(props: PageProps<"/g/[slug]/account">)
       <section id="history" className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted">History in {org.name}</h2>
-          <Link href={`${base}/settle`} className="text-sm font-semibold text-brand">
-            Record a payment
-          </Link>
+          <span className="flex items-center gap-4">
+            {rows.length > 0 && (
+              // A plain link: this is a file download from a route handler, not a page.
+              <a href={`${base}/export?type=history`} download className="flex items-center gap-1 text-sm font-semibold text-brand">
+                <DownloadSimple size={14} aria-hidden="true" /> CSV
+              </a>
+            )}
+            <Link href={`${base}/settle`} className="text-sm font-semibold text-brand">
+              Record a payment
+            </Link>
+          </span>
         </div>
         {rows.length === 0 ? (
           <EmptyState

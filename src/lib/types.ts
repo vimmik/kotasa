@@ -1,3 +1,5 @@
+import type { Bill } from "@/lib/split";
+
 export type MemberStatus = "active" | "pending" | "inactive";
 
 export type OrgKind = "office" | "friends" | "trip" | "family" | "club" | "other";
@@ -24,6 +26,8 @@ export type Profile = {
   monthly_income: number | null;
   /** Salary day 1-28, for "payday to payday" budgets */
   payday: number | null;
+  /** Bank details for people who owe you, in every group (20261112) */
+  pay_details?: string | null;
   created_at: string;
 };
 
@@ -56,7 +60,13 @@ export type OrgSettings = {
   auto_close?: boolean;
   /** "How to pay" (bank account, cash to whom…), shown on the bill and Home; missing before 20261024 */
   pay_note?: string | null;
+  /** how often the SMS goes out (20261112; missing before = weekly) */
+  sms_frequency?: SmsFrequency;
+  /** day of the month for monthly SMS; 29-31 = last day of a shorter month (20261112) */
+  billing_monthday?: number;
 };
+
+export type SmsFrequency = "daily" | "weekly" | "monthly";
 
 /** Someone inside one group. profile_id null = SMS-only guest. */
 export type Member = {
@@ -69,6 +79,8 @@ export type Member = {
   role_key: string;
   status: MemberStatus;
   view_token: string;
+  /** Bank details for this group only; else the profile's (20261112) */
+  pay_details?: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -128,6 +140,8 @@ export type Expense = {
   meal_date: string | null;
   meal: string | null;
   split_type: "equal" | "custom";
+  /** set when the bill was split by item (20261112); its shares are a custom split */
+  bill?: Bill | null;
   note: string | null;
   created_by: string | null;
   created_at: string;

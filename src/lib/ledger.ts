@@ -124,3 +124,29 @@ export async function getLedgerFor(
 export function signedFor(memberId: string, row: LedgerRow) {
   return row.creditor === memberId ? row.amount : -row.amount;
 }
+
+/** Every ledger line between two members of one group, newest first. */
+export async function getLedgerBetween(orgId: string, a: string, b: string, limit = 400) {
+  const UUID = /^[0-9a-f-]{36}$/;
+  if (!UUID.test(a) || !UUID.test(b)) return [];
+  const { data, error } = await orgDb(orgId)
+    .select("ledger")
+    .or(`and(debtor.eq.${a},creditor.eq.${b}),and(debtor.eq.${b},creditor.eq.${a})`)
+    .order("entry_date", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as LedgerRow[]).map((r) => ({ ...r, amount: Number(r.amount) }));
+}
+
+/**
+ * What is directly between two members, before "fewest payments" or a close moves anything:
+ * every line between just these two, netted (pair_balances). + means `other` owes `me`.
+ */
+export async function getDirectBalance(orgId: string, me: string, other: string): Promise<number> {
+  const { data, error } = await createAdminClient().rpc("pair_balances", { p_org: orgId });
+  if (error) throw new Error(error.message);
+  const pairs = ((data ?? []) as Pair[]).map((p) => ({ ...p, amount: Number(p.amount) }));
+  const owedToMe = pairs.find((p) => p.debtor === other && p.creditor === me)?.amount ?? 0;
+  const iOwe = pairs.find((p) => p.debtor === me && p.creditor === other)?.amount ?? 0;
+  return owedToMe - iOwe;
+}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PencilSimple, Trash } from "@phosphor-icons/react/ssr";
+import { CopySimple, PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 import { can, requireMember } from "@/lib/auth";
 import { closedThrough } from "@/lib/closing";
 import { getPairs, listMembers } from "@/lib/ledger";
@@ -8,7 +8,9 @@ import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
 import { getExpenseCopayers, paidByEach } from "@/lib/payers";
 import { fmtDay, todayColombo } from "@/lib/time";
+import { receiptScanEnabled } from "@/lib/receipt";
 import { rs, type Expense, type ExpenseShare } from "@/lib/types";
+import { billTotals, splitByItems, type Bill } from "@/lib/split";
 import { deleteExpense } from "@/app/actions/expenses";
 import { Avatar, CategoryIcon, PageHeader } from "@/components/bits";
 import { ConfirmButton } from "@/components/ui";
@@ -69,6 +71,7 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
           shares={Object.fromEntries(shares.map((s) => [s.person_id, Number(s.amount)]))}
           copayers={copayers}
           closedThrough={through}
+          scanEnabled={receiptScanEnabled()}
         />
       </div>
     );
@@ -108,7 +111,7 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
               <b>{who(expense.paid_by)}</b> paid
             </>
           )}{" "}
-          · {expense.split_type === "equal" ? "split equally" : "custom split"}
+          · {expense.bill ? "split by item" : expense.split_type === "equal" ? "split equally" : "custom split"}
           {myNet < -0.004 && (
             <>
               {" · "}you owe <b className="text-danger">{rs(-myNet)}</b>
@@ -147,10 +150,17 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
         </ul>
       </section>
 
+      {expense.bill && <BillBreakdown bill={expense.bill} who={(pid) => who(pid) ?? "Someone"} />}
+
       <div className="flex flex-wrap gap-2">
         <Link href={`${base}/expenses`} className="btn-ghost">
           Back
         </Link>
+        {can(ctx, "expense.add") && !expense.meal && (
+          <Link href={`${base}/expenses/new?from=${id}`} className="btn-ghost">
+            <CopySimple size={15} aria-hidden="true" /> Add again
+          </Link>
+        )}
         {canEdit && (
           <>
             <Link href={`${base}/expenses/${id}?edit=1`} className="btn-ghost">
@@ -178,5 +188,61 @@ export default async function ExpensePage(props: PageProps<"/g/[slug]/expenses/[
         {locked && ` The books are closed up to ${fmtDay(through!)}, so it can't be changed.`}
       </p>
     </div>
+  );
+}
+
+/** The bill line by line: who had each item, then tax/charges and discounts shared by what each had. */
+function BillBreakdown({ bill, who }: { bill: Bill; who: (id: string) => string }) {
+  const sums = billTotals(bill);
+  const per = splitByItems(bill);
+  const adjust = sums.charges - sums.discounts;
+  return (
+    <section className="card space-y-3">
+      <h2 className="font-semibold">The bill</h2>
+      <ul className="divide-y divide-line text-sm">
+        {bill.items.map((i, n) => (
+          <li key={n} className="flex items-start gap-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{i.name}</p>
+              <p className="text-xs text-muted">
+                {i.people.map(who).join(", ")}
+                {i.people.length > 1 && ` · ${rs(i.amount / i.people.length)} each`}
+              </p>
+            </div>
+            <span className="tabular-nums">{rs(i.amount)}</span>
+          </li>
+        ))}
+        {bill.extras.map((x, n) => (
+          <li key={`x${n}`} className="flex justify-between gap-3 py-2">
+            <span className="text-muted">{x.label}</span>
+            <span className={`tabular-nums ${x.kind === "discount" ? "text-brand" : ""}`}>
+              {x.kind === "discount" ? "− " : "+ "}
+              {rs(x.amount)}
+            </span>
+          </li>
+        ))}
+        <li className="flex justify-between gap-3 py-2 font-semibold">
+          <span>Total</span>
+          <span className="tabular-nums">{rs(sums.total)}</span>
+        </li>
+      </ul>
+      {Math.abs(adjust) > 0.004 && (
+        <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+          {sums.charges > 0 && sums.discounts > 0
+            ? "Tax, charges and discounts are"
+            : sums.charges > 0
+              ? "Tax and charges are"
+              : "Discounts are"}{" "}
+          shared in proportion to what each person had:{" "}
+          {per.map((p, n) => (
+            <span key={p.person_id}>
+              {n > 0 && ", "}
+              {who(p.person_id)} {rs(p.items)} → <b>{rs(p.amount)}</b>
+            </span>
+          ))}
+          .
+        </p>
+      )}
+    </section>
   );
 }

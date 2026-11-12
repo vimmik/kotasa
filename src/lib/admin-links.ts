@@ -12,7 +12,7 @@ export function adminLinks(ctx: OrgContext): AdminLink[] {
     meals && has("meals.manage_menu") && { href: `${b}/menu`, label: "Menu" },
     meals && has("meals.order_for_others") && { href: `${b}/orders`, label: "Orders" },
     (has("members.invite") || has("members.manage")) && { href: `${b}/people`, label: "People" },
-    has("sms.send") && { href: `${b}/sms`, label: "Weekly SMS" },
+    has("sms.send") && { href: `${b}/sms`, label: "SMS" },
     has("books.close") && { href: `${b}/books`, label: "Close books" },
     has("settings.manage") && { href: `${b}/settings`, label: "Settings" },
   ].filter((l): l is AdminLink => !!l);

@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { groupsWithAutoClose, groupsWithSmsOn } from "@/lib/accounts";
 import { closeBooks, closedThrough } from "@/lib/closing";
-import { sendWeeklySms, type SmsRunSummary } from "@/lib/sms";
+import { isSmsDay, sendWeeklySms, type SmsRunSummary } from "@/lib/sms";
 import { addDays, isoWeekday, nowColombo, weekStart } from "@/lib/time";
 
 // Called every hour by Supabase pg_cron (migration 20261027000000_hourly_sms_cron).
-// Sends only on the billing weekday, at/after the configured hour,
-// and skips anyone who already got this week's SMS (e.g. sent manually earlier).
+// Sends on each group's SMS day (every day, its billing weekday, or its day of the month), at/after
+// the configured hour, and skips anyone who already got this period's SMS (e.g. sent manually earlier).
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
   const results: Record<string, SmsRunSummary | string> = {};
   for (const group of await groupsWithSmsOn()) {
     const { org, settings } = group;
-    if (!force && isoWeekday(now.date) !== settings.billing_weekday) {
-      results[org.slug] = "not billing day";
+    if (!force && !isSmsDay(settings, now.date)) {
+      results[org.slug] = "not an SMS day";
       continue;
     }
     if (!force && now.hour < settings.sms_send_hour) {

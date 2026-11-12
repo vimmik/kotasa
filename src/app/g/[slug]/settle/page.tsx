@@ -1,5 +1,6 @@
 import { can, requireMember } from "@/lib/auth";
 import { closedThrough } from "@/lib/closing";
+import { payDetailsFor } from "@/lib/pay-details";
 import { getPairs, listMembers, summarize } from "@/lib/ledger";
 import { todayColombo } from "@/lib/time";
 import { PageHeader } from "@/components/bits";
@@ -10,7 +11,12 @@ export default async function SettlePage(props: PageProps<"/g/[slug]/settle">) {
   const ctx = await requireMember(slug);
   const me = ctx.member;
   const sp = await props.searchParams;
-  const [people, pairs, through] = await Promise.all([listMembers(ctx.org.id), getPairs(ctx.org.id), closedThrough(ctx.org.id)]);
+  const [people, pairs, through, details] = await Promise.all([
+    listMembers(ctx.org.id),
+    getPairs(ctx.org.id),
+    closedThrough(ctx.org.id),
+    payDetailsFor(ctx.org.id),
+  ]);
   const b = summarize(me.id, pairs);
 
   // ?to=X means I'm paying X; ?from=X means X paid me
@@ -41,6 +47,8 @@ export default async function SettlePage(props: PageProps<"/g/[slug]/settle">) {
         initial={initial}
         today={todayColombo()}
         closedThrough={through}
+        // Only the people you owe: that's who you'd send money to.
+        payTo={Object.fromEntries(b.owes.filter((o) => details.has(o.personId)).map((o) => [o.personId, details.get(o.personId)!]))}
       />
     </div>
   );

@@ -1,14 +1,18 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { PaperPlaneTilt } from "@phosphor-icons/react/ssr";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { memberByViewToken } from "@/lib/accounts";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { BRAND } from "@/lib/brand";
 import { closedThrough } from "@/lib/closing";
+import { payDetailsFor } from "@/lib/pay-details";
 import { expenseIconMap, getPayNote } from "@/lib/org-config";
 import { addDays, fmtDay, todayColombo } from "@/lib/time";
+import { paidText } from "@/lib/messages";
 import { rs } from "@/lib/types";
+import { PayTo, ShareButton } from "@/components/share";
 import { ActivityList } from "@/components/activity";
 import { Avatar, Loading, Money, PayNote } from "@/components/bits";
 import { DevelopedBy, Logo } from "@/components/brand";
@@ -39,12 +43,13 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
   const { member: me, org } = found;
 
   // Everything below is scoped to the member's own group.
-  const [people, pairs, rows, through, payNote] = await Promise.all([
+  const [people, pairs, rows, through, payNote, payTo] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     getLedgerFor(org.id, me.id, { from: addDays(todayColombo(), -45), limit: 150 }),
     closedThrough(org.id),
     getPayNote(org.id),
+    payDetailsFor(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const b = summarize(me.id, pairs);
@@ -81,7 +86,16 @@ async function Bill({ params }: { params: PageProps<"/b/[token]">["params"] }) {
             {b.owes.map((o) => (
               <li key={`o-${o.personId}`} className="flex items-center gap-3 py-2.5">
                 <Avatar name={names.get(o.personId) ?? "?"} size={32} />
-                <span className="flex-1 font-medium">Pay {names.get(o.personId)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">Pay {names.get(o.personId)}</span>
+                  {payTo.get(o.personId) && <PayTo details={payTo.get(o.personId)!} prefix="" className="mt-0.5" />}
+                  <ShareButton
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand"
+                    text={paidText({ to: names.get(o.personId) ?? "", from: me.full_name, group: org.name, amount: o.amount, recorded: false })}
+                  >
+                    <PaperPlaneTilt size={13} aria-hidden="true" /> Paid? Tell {(names.get(o.personId) ?? "them").split(" ")[0]}
+                  </ShareButton>
+                </span>
                 <Money value={-o.amount} signed className="text-sm" />
               </li>
             ))}

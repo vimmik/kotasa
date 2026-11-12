@@ -1,15 +1,18 @@
 import Link from "next/link";
-import { ArrowRight, BookOpenText, CheckCircle, ForkKnife } from "@phosphor-icons/react/ssr";
+import { ArrowRight, BellRinging, BookOpenText, ChartBar, CheckCircle, ForkKnife, PaperPlaneTilt } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
-import { BRAND } from "@/lib/brand";
+import { appUrl, BRAND } from "@/lib/brand";
 import { closedThrough } from "@/lib/closing";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { expenseIconMap, getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
+import { payDetailsFor } from "@/lib/pay-details";
 import { fmtDay, isPastCutoff, todayColombo } from "@/lib/time";
+import { paidText, remindText } from "@/lib/messages";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
 import { Avatar, EmptyState, PayNote } from "@/components/bits";
+import { PayTo, ShareButton } from "@/components/share";
 
 export default async function Home(props: PageProps<"/g/[slug]">) {
   const { slug } = await props.params;
@@ -19,7 +22,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const sp = await props.searchParams;
   const today = todayColombo();
 
-  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through] = await Promise.all([
+  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through, payTo] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     // Several lines make one item (one per person in an expense), so read more than are shown.
@@ -32,8 +35,13 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
       ? orgDb(org.id).select("meal_joins", "meal").eq("member_id", me.id).eq("join_date", today)
       : Promise.resolve({ data: [] as { meal: string }[] }),
     closedThrough(org.id),
+    payDetailsFor(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
+  const hasApp = new Set(people.filter((p) => p.registered).map((p) => p.id));
+  // Just recorded "I paid X": offer to tell them (the ids come from the URL, so check them).
+  const toldId = typeof sp.paid === "string" && names.has(sp.paid) && sp.paid !== me.id ? sp.paid : null;
+  const toldAmount = typeof sp.amt === "string" && Number(sp.amt) > 0 ? Number(sp.amt) : 0;
   const slotLabel = new Map(slots.map((s) => [s.key, s.label]));
   const b = summarize(me.id, pairs);
   // Once every meal of the day is past its cutoff, point people at tomorrow instead.
@@ -47,9 +55,19 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   return (
     <div className="stagger space-y-6">
       {sp.settled === "1" && (
-        <p className="flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-strong">
-          <CheckCircle size={16} weight="fill" aria-hidden="true" /> Payment recorded
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-strong">
+          <p className="flex flex-1 items-center gap-2">
+            <CheckCircle size={16} weight="fill" aria-hidden="true" /> Payment recorded
+          </p>
+          {toldId && toldAmount > 0 && (
+            <ShareButton
+              className="btn-ghost min-h-8 px-3 py-1 text-xs"
+              text={paidText({ to: names.get(toldId)!, from: me.full_name, group: org.name, amount: toldAmount, recorded: true })}
+            >
+              <PaperPlaneTilt size={14} aria-hidden="true" /> Tell {names.get(toldId)!.split(" ")[0]}
+            </ShareButton>
+          )}
+        </div>
       )}
 
       <section className="card relative overflow-hidden p-0">
@@ -98,8 +116,10 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                 {b.owes.map((o) => (
                   <BalanceRow
                     key={o.personId}
+                    why={`${base}/with/${o.personId}`}
                     name={names.get(o.personId) ?? "?"}
                     line={`You owe ${rs(o.amount)}`}
+                    details={payTo.get(o.personId)}
                     tone="text-danger"
                     href={`${base}/settle?to=${o.personId}&amount=${o.amount}`}
                     action="Pay"
@@ -120,8 +140,17 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                 {b.owed.map((o) => (
                   <BalanceRow
                     key={o.personId}
+                    why={`${base}/with/${o.personId}`}
                     name={names.get(o.personId) ?? "?"}
                     line={`Owes you ${rs(o.amount)}`}
+                    remind={remindText({
+                      to: names.get(o.personId) ?? "",
+                      group: org.name,
+                      amount: o.amount,
+                      payDetails: payTo.get(me.id),
+                      // People with the app get a link that opens the payment form filled in.
+                      link: hasApp.has(o.personId) ? `${appUrl()}${base}/settle?to=${me.id}&amount=${o.amount}` : undefined,
+                    })}
                     tone="text-brand"
                     href={`${base}/settle?from=${o.personId}&amount=${o.amount}`}
                     action="Got paid"
@@ -173,6 +202,17 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
         )}
       </section>
 
+      <Link href={`${base}/insights`} className="card-link flex items-center gap-3">
+        <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
+          <ChartBar size={18} weight="duotone" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Insights</p>
+          <p className="truncate text-sm text-muted">Where the money went this month, and your share of it</p>
+        </div>
+        <ArrowRight size={18} className="text-muted" aria-hidden="true" />
+      </Link>
+
       <Link href={`${base}/guide`} className="card-link flex items-center gap-3">
         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
           <BookOpenText size={18} weight="duotone" aria-hidden="true" />
@@ -188,14 +228,45 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
 }
 
 /** One person you owe or who owes you: the amount sits under the name, so long names fit on a phone. */
-function BalanceRow({ name, line, tone, href, action }: { name: string; line: string; tone: string; href: string; action: string }) {
+function BalanceRow({
+  name,
+  why,
+  line,
+  details,
+  remind,
+  tone,
+  href,
+  action,
+}: {
+  name: string;
+  /** the page that shows how this amount adds up */
+  why: string;
+  line: string;
+  /** their bank details, when you owe them */
+  details?: string;
+  /** a ready reminder message, when they owe you */
+  remind?: string;
+  tone: string;
+  href: string;
+  action: string;
+}) {
   return (
     <li className="flex items-center gap-3 py-2.5">
       <Avatar name={name} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{name}</p>
-        <p className={`text-sm font-medium tabular-nums ${tone}`}>{line}</p>
+        <Link href={why} className="block rounded-lg" aria-label={`${name}: ${line}. See how it adds up`}>
+          <p className="truncate font-semibold">{name}</p>
+          <p className={`text-sm font-medium tabular-nums ${tone}`}>
+            {line} <span className="font-normal text-muted underline decoration-dotted underline-offset-2">why?</span>
+          </p>
+        </Link>
+        {details && <PayTo details={details} className="mt-0.5" />}
       </div>
+      {remind && (
+        <ShareButton text={remind} className="btn-ghost size-9 min-h-0 shrink-0 p-0" label={`Remind ${name.split(" ")[0]}`}>
+          <BellRinging size={16} aria-hidden="true" />
+        </ShareButton>
+      )}
       <Link href={href} className="btn-ghost shrink-0 px-3 py-1.5 text-xs">
         {action}
       </Link>

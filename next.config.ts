@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // Bill photos for "Scan a bill" are shrunk in the browser first (about 0.5 MB); this leaves room.
+    serverActions: { bodySizeLimit: "2mb" },
+  },
   async headers() {
     // Conservative hardening headers applied to every route. A full
     // Content-Security-Policy is intentionally left out for now: it needs

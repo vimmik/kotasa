@@ -337,3 +337,24 @@ export async function leaveGroup(_: ActionState, form: FormData): Promise<Action
   refresh();
   redirect("/groups");
 }
+
+/**
+ * Your bank details, shown to people who owe you (Home, bill link, payment page, SMS).
+ * `pay_details` is for every group; with a group (`org`), `member_pay_details` is for that group only.
+ */
+export async function savePayDetails(_: ActionState, form: FormData): Promise<ActionState> {
+  const me = await requireProfile();
+  const general = str(form, "pay_details").replace(/\s+/g, " ");
+  if (general.length > 120) return { error: "Keep the bank details under 120 characters, like “BOC 8012345678, K Dinajara”" };
+  const { error } = await createAdminClient().from("profiles").update({ pay_details: general || null }).eq("id", me.id);
+  if (error) return { error: "Couldn't save the bank details. Try again in a moment." };
+  if (form.has("org")) {
+    const ctx = await requireMemberFromForm(form);
+    const own = str(form, "member_pay_details").replace(/\s+/g, " ");
+    if (own.length > 120) return { error: "Keep the bank details under 120 characters" };
+    const { error: mErr } = await orgDb(ctx.org.id).update("members", { pay_details: own || null }).eq("id", ctx.member.id);
+    if (mErr) return { error: "Saved for all groups, but not the one for this group. Try again." };
+  }
+  refresh();
+  return { ok: true, message: "Bank details saved" };
+}
