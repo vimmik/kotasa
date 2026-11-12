@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveBilling, saveCategory, saveGroup, saveMealSlot, saveModules } from "@/app/actions/admin";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
@@ -191,12 +191,28 @@ export function MealSlotsEditor({ slots }: { slots: MealSlot[] }) {
   );
 }
 
+const FREQUENCIES = [
+  { id: "daily", label: "Every day", word: "daily" },
+  { id: "weekly", label: "Every week", word: "weekly" },
+  { id: "monthly", label: "Every month", word: "monthly" },
+] as const;
+
 export function BillingForm({ s, people }: { s: OrgSettings; people: { id: string; name: string }[] }) {
   const [state, action] = useActionState(saveBilling, null);
+  const hasFrequency = s.sms_frequency !== undefined;
+  const [frequency, setFrequency] = useState(s.sms_frequency ?? "weekly");
+  const [template, setTemplate] = useState(s.sms_template);
+  const changeFrequency = (f: (typeof FREQUENCIES)[number]["id"]) => {
+    // Keep the message's own wording in step: "Office weekly (…)" becomes "Office daily (…)".
+    const from = FREQUENCIES.find((x) => x.id === frequency)!.word;
+    const to = FREQUENCIES.find((x) => x.id === f)!.word;
+    setTemplate((t) => t.replace(new RegExp(`\\b${from}\\b`), to));
+    setFrequency(f);
+  };
   return (
     <ActionForm action={action} className="card grid gap-4 sm:grid-cols-3">
       <OrgField />
-      <h2 className="font-semibold sm:col-span-3">Weekly bill and SMS</h2>
+      <h2 className="font-semibold sm:col-span-3">Bill and SMS</h2>
       <div className="sm:col-span-3">
         <label className="label" htmlFor="collector_id">Meal and SMS collector</label>
         <select id="collector_id" name="collector_id" defaultValue={s.collector_id ?? ""} className="input sm:max-w-sm">
@@ -209,7 +225,23 @@ export function BillingForm({ s, people }: { s: OrgSettings; people: { id: strin
         </select>
         <p className="mt-1 text-xs text-muted">Pays the food vendor and the SMS bill; meal orders and SMS fees are owed to them.</p>
       </div>
-      <div>
+      {hasFrequency && (
+        <div>
+          <label className="label" htmlFor="sms_frequency">Send the SMS</label>
+          <select
+            id="sms_frequency"
+            name="sms_frequency"
+            value={frequency}
+            onChange={(e) => changeFrequency(e.target.value as (typeof FREQUENCIES)[number]["id"])}
+            className="input"
+          >
+            {FREQUENCIES.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className={frequency === "weekly" ? "" : "hidden"}>
         <label className="label" htmlFor="billing_weekday">Send on (last working day)</label>
         <select id="billing_weekday" name="billing_weekday" defaultValue={s.billing_weekday} className="input">
           {WEEKDAYS.map((d, i) => (
@@ -219,13 +251,24 @@ export function BillingForm({ s, people }: { s: OrgSettings; people: { id: strin
           ))}
         </select>
       </div>
+      {hasFrequency && (
+        <div className={frequency === "monthly" ? "" : "hidden"}>
+          <label className="label" htmlFor="billing_monthday">Send on</label>
+          <select id="billing_monthday" name="billing_monthday" defaultValue={(s.billing_monthday ?? 31) >= 29 ? 31 : s.billing_monthday} className="input">
+            {Array.from({ length: 28 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>Day {i + 1}</option>
+            ))}
+            <option value={31}>Last day of the month</option>
+          </select>
+        </div>
+      )}
       <div>
         <label className="label" htmlFor="sms_send_hour">From hour (0–23)</label>
         <input id="sms_send_hour" name="sms_send_hour" type="number" min={0} max={23} defaultValue={s.sms_send_hour} className="input" />
-        <p className="mt-1 text-xs text-muted">Sri Lanka time. 21 sends at 9:00 PM on the day above.</p>
+        <p className="mt-1 text-xs text-muted">Sri Lanka time. 21 sends at 9:00 PM{frequency === "daily" ? " every day" : " on the day above"}.</p>
       </div>
       <div>
-        <label className="label" htmlFor="sms_fee">SMS fee per person (Rs.)</label>
+        <label className="label" htmlFor="sms_fee">SMS fee per person a week (Rs.)</label>
         <input id="sms_fee" name="sms_fee" inputMode="decimal" defaultValue={s.sms_fee} className="input" />
       </div>
       <div>
@@ -255,9 +298,17 @@ export function BillingForm({ s, people }: { s: OrgSettings; people: { id: strin
       )}
       <div className="sm:col-span-3">
         <label className="label" htmlFor="sms_template">Message</label>
-        <textarea id="sms_template" name="sms_template" defaultValue={s.sms_template} rows={3} className="input font-mono text-sm" />
+        <textarea
+          id="sms_template"
+          name="sms_template"
+          value={template}
+          onChange={(e) => setTemplate(e.target.value)}
+          rows={3}
+          className="input font-mono text-sm"
+        />
         <p className="mt-1 text-xs text-muted">
-          {"{name} {full_name} {week} {owe_lines} {total} {link} {group} {app}"}. Must include {"{total}"} and {"{link}"}.
+          {"{name} {full_name} {period} {owe_lines} {total} {link} {group} {app}"}. Must include {"{total}"} and {"{link}"}.{" "}
+          {"{period}"} is the day, week or month. {"{owe_lines}"} lists who to pay, with their bank details when they&apos;ve added them.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-3">

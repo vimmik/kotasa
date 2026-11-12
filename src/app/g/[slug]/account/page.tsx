@@ -11,7 +11,7 @@ import { logout } from "@/app/actions/auth";
 import { ActivityList } from "@/components/activity";
 import { Avatar, EmptyState } from "@/components/bits";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { CopyLink, LeaveGroupForm, PinForm } from "@/components/account-forms";
+import { CopyLink, LeaveGroupForm, PayDetailsForm, PinForm } from "@/components/account-forms";
 import { DevelopedBy } from "@/components/brand";
 
 export default async function AccountPage(props: PageProps<"/g/[slug]/account">) {
@@ -74,6 +74,16 @@ export default async function AccountPage(props: PageProps<"/g/[slug]/account">)
         <h2 className="font-semibold">Appearance</h2>
         <ThemeToggle />
       </section>
+
+      {profile.pay_details !== undefined && (
+        <section className="card space-y-3">
+          <div>
+            <h2 className="font-semibold">How people pay you</h2>
+            <p className="text-sm text-muted">When someone owes you, they see these details so they know where to send the money.</p>
+          </div>
+          <PayDetailsForm general={profile.pay_details ?? null} group={{ name: org.name, own: me.pay_details ?? null }} />
+        </section>
+      )}
 
       <section className="card space-y-3">
         <div>

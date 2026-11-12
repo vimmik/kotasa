@@ -20,7 +20,9 @@ in many groups. Design and decisions: `docs/multi-tenant-plan.md`.
 Product decisions Kavi made (don't change without asking):
 - **Not just meals.** Any expense ("Uber case") can be added and split. Meals are one module.
 - **Anyone pays, app tracks** person-to-person debts (Splitwise-style), not a single central kitty.
-- **Split:** equal (default) or custom amounts per person.
+- **Split:** equal (default), by item, or custom amounts per person. By item (Kavi, 2026-11-12): each item is split
+  equally between who had it; tax, charges and discounts are shared **in proportion** to each person's items
+  (never equally). "Scan a bill" reads a bill photo into items/charges/discounts (Claude API, `lib/receipt.ts`).
 - **Who can do what** is per group: roles are named permission sets (`org_roles`); code checks
   permissions from `src/lib/permissions.ts`, never role names. Defaults: owner/admin = everything,
   member = add expenses + invite. Edit/delete an expense: creator, payer, or `expense.edit_any`.
@@ -31,9 +33,13 @@ Product decisions Kavi made (don't change without asking):
 - **Budgets:** both plain expenses and budgets/funds with an optional limit.
 - **Meals:** members order themselves AND admin can enter/fix anyone's order. Prices change daily (per-day menu).
   Orders lock at a cutoff time.
-- **Weekly SMS:** on the last office day (configurable), scheduled + admin can send manually earlier.
-  Scheduled run skips people already sent that week. An SMS fee is added to each person's bill once a week,
-  owed to the collector.
+- **SMS:** daily, weekly (billing weekday) or monthly (day of month / last day), set per group
+  (`org_settings.sms_frequency`, `billing_monthday`, 20261112). Scheduled + admin can send manually earlier.
+  Scheduled run skips people already sent that period. An SMS fee is added to each person's bill at most once a
+  week (whatever the frequency), owed to the collector.
+- **Bank details:** a person's `profiles.pay_details` (all groups) or `members.pay_details` (one group, overrides).
+  Shown only to people who owe them: Home, settle page, bill link, and in `{owe_lines}` of the SMS
+  (`payDetailsFor`, lib/pay-details.ts). Edited in Me › Settings and the group's Account page.
 - **Unpaid balances carry forward** automatically.
 - **Login:** phone + 6-digit PIN (for people an admin adds), and Google. New people join a group by
   invite link (optionally needing approval) or get added by an admin. Leaving with a balance is allowed:
@@ -148,7 +154,10 @@ src/lib/
   ledger.ts                  listMembers, getPairs(orgId) (rpc pair_balances), summarize, getLedgerFor
   logins.ts                  PIN login create/update per profile; profileOwnedByOrg (who may reset a PIN)
   sms.ts                     buildWeeklyMessages, sendWeeklySms (per group, monthly cap), Text.lk / Notify.lk senders
-  split.ts                   splitEqually (cent-exact)
+  split.ts                   splitEqually (cent-exact), splitByItems (by item; extras pro rata, cent-exact), billTotals
+  receipt.ts                 scanReceipt: bill photo -> items/charges/discounts via Claude (structured output).
+                             Off unless ANTHROPIC_API_KEY is set; receipt_scans caps 40/group, 15/person a day
+  pay-details.ts             payDetailsFor(orgId): member's bank details, else their profile's
   time.ts                    Asia/Colombo dates as "YYYY-MM-DD" strings, weeks start Monday
   phone.ts                   normalize to 94XXXXXXXXX, displayPhone, PIN email helper
   brand.ts                   BRAND name/tagline/colors, appUrl()
@@ -168,7 +177,9 @@ scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)
   `org_meal_slots` (key, label, cutoff), `org_invites`, `circles` + `circle_members` (phase 1b UI).
 - `members` — someone inside one group: `org_id`, `profile_id` (null = SMS-only guest), `role_key`,
   `status` active | pending | inactive, `phone` (SMS), `view_token` (24 hex, for `/b/<token>`).
-- Money tables all have `org_id`: `expenses` + `expense_shares` (sum of shares = amount), `budgets`,
+- Money tables all have `org_id`: `expenses` + `expense_shares` (sum of shares = amount; a by-item expense is
+  `split_type='custom'` plus `expenses.bill` jsonb {items[{name,amount,people}], extras[{label,amount,kind}]},
+  shares computed by splitByItems and stored as usual, so the ledger never reads `bill`), `budgets`,
   `menu_items` (per date + meal slot), `orders` (one per member/date/slot; `payee_id` = collector at order
   time, item name/price snapshotted), `meal_payers` (who paid the vendor for one date + slot; set on the
   packing page; new orders take it as `payee_id`, else the collector). Shared meal items (family pack,
@@ -256,7 +267,8 @@ Run typecheck + lint + build before saying something is done.
 (secret, server only), `NEXT_PUBLIC_APP_URL`, `AUTH_EMAIL_DOMAIN` (kotasa.local),
 `NEXT_PUBLIC_GOOGLE_LOGIN` (`off` hides the button), `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (set: Google's own button +
 `signInWithIdToken`, so the consent screen shows our domain; empty: Supabase redirect flow), `CRON_SECRET`, `SMS_PROVIDER`, `TEXTLK_API_KEY`,
-`TEXTLK_SENDER_ID` (Notify.lk: `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID`). Template in `.env.example`.
+`TEXTLK_SENDER_ID` (Notify.lk: `NOTIFY_USER_ID`, `NOTIFY_API_KEY`, `NOTIFY_SENDER_ID`), `ANTHROPIC_API_KEY`
+(Scan a bill; empty hides it), `RECEIPT_MODEL` (optional, default claude-opus-5-5). Template in `.env.example`.
 
 ## Databases (since 2026-10-11)
 - **Prod**: Supabase `fmmsvvuxxctjovgksvqo` (official account). **QA**: `pxuahnbpuapsayariyxy`.

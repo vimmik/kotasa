@@ -1,9 +1,9 @@
 import { WhatsappLogo } from "@phosphor-icons/react/ssr";
 import { requirePermission } from "@/lib/auth";
-import { buildWeeklyMessages, smsParts } from "@/lib/sms";
+import { buildWeeklyMessages, smsFrequency, smsParts, smsScheduleText } from "@/lib/sms";
 import { orgDb } from "@/lib/org-db";
 import { displayPhone } from "@/lib/phone";
-import { fmtDay, isValidDate, todayColombo, WEEKDAYS, weekStart } from "@/lib/time";
+import { fmtDay, isValidDate, todayColombo, weekStart } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { SMS_FORM_ID, SmsSendForm, SmsTestForm } from "@/components/sms-form";
 import { WeekNav } from "@/components/week-nav";
@@ -34,10 +34,11 @@ export default async function SmsPage(props: PageProps<"/g/[slug]/admin/sms">) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Weekly SMS</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">SMS</h1>
           <p className="text-sm text-muted">
-            Auto-sends every {WEEKDAYS[settings.billing_weekday - 1]} from {String(settings.sms_send_hour).padStart(2, "0")}:00 to
-            everyone who owes money. Sent early? They&apos;re skipped. SMS fee {rs(settings.sms_fee)}, once a week.
+            Auto-sends {smsScheduleText(settings)} from {String(settings.sms_send_hour).padStart(2, "0")}:00 to everyone who
+            owes money. Sent early? They&apos;re skipped{smsFrequency(settings) === "daily" ? " that day" : ""}. SMS fee{" "}
+            {rs(settings.sms_fee)}, at most once a week.
           </p>
         </div>
         <WeekNav base={`${ctx.base}/admin/sms?`} ws={w} />

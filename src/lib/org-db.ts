@@ -22,6 +22,7 @@ type OrgTable =
   | "meal_joins"
   | "settlements"
   | "sms_logs"
+  | "receipt_scans"
   | "org_closings"
   | "org_closing_balances"
   | "ledger";

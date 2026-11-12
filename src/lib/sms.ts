@@ -3,8 +3,9 @@ import { closedThrough } from "@/lib/closing";
 import { orgDb } from "@/lib/org-db";
 import { getPairs, listMembers, summarize } from "@/lib/ledger";
 import { appUrl, BRAND } from "@/lib/brand";
-import { addDays, fmtWeek, todayColombo } from "@/lib/time";
-import { round2, type Org, type OrgSettings } from "@/lib/types";
+import { payDetailsFor } from "@/lib/pay-details";
+import { addDays, daysInMonth, fmtDay, fmtMonth, fmtWeek, isoWeekday, todayColombo } from "@/lib/time";
+import { round2, type Org, type OrgSettings, type SmsFrequency } from "@/lib/types";
 
 /** What the SMS functions need to know about a group. */
 export type SmsGroup = { org: Org; settings: OrgSettings };
@@ -94,11 +95,40 @@ export function sendTestSms(to94: string, groupName: string) {
 
 const n = (x: number) => round2(x).toLocaleString("en-LK");
 
+/** How often this group's SMS goes out (weekly before the 20261112 migration). */
+export const smsFrequency = (s: OrgSettings): SmsFrequency => s.sms_frequency ?? "weekly";
+
+/** Is `date` a day the scheduled SMS goes out? Monthly on the 29th-31st means the last day of shorter months. */
+export function isSmsDay(s: OrgSettings, date: string): boolean {
+  const f = smsFrequency(s);
+  if (f === "daily") return true;
+  if (f === "weekly") return isoWeekday(date) === s.billing_weekday;
+  return Number(date.slice(8, 10)) === Math.min(s.billing_monthday ?? 31, daysInMonth(date));
+}
+
+/** When the current SMS period started (Colombo midnight, as a timestamp) and its name for {week}. */
+function currentPeriod(f: SmsFrequency, weekStart: string) {
+  const today = todayColombo();
+  if (f === "daily") return { since: `${today}T00:00:00+05:30`, label: fmtDay(today) };
+  if (f === "monthly") return { since: `${today.slice(0, 7)}-01T00:00:00+05:30`, label: fmtMonth(today) };
+  return { since: null, label: fmtWeek(weekStart) };
+}
+
+/** Plain-words schedule for the admin pages: "every Friday", "every day", "on the last day of each month". */
+export function smsScheduleText(s: OrgSettings) {
+  const f = smsFrequency(s);
+  if (f === "daily") return "every day";
+  if (f === "weekly") return `every ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][s.billing_weekday - 1]}`;
+  const d = s.billing_monthday ?? 31;
+  return d >= 29 ? "on the last day of each month" : `on day ${d} of each month`;
+}
+
 export function renderTemplate(
   tpl: string,
   v: { name: string; week: string; oweLines: string; total: number; link: string; group: string },
 ) {
   return tpl
+    .replaceAll("{period}", v.week)
     .replaceAll("{name}", v.name.split(" ")[0])
     .replaceAll("{full_name}", v.name)
     .replaceAll("{week}", v.week)
@@ -121,44 +151,59 @@ export type SmsPreview = {
   whatsappMessage: string;
 };
 
-/** Build this week's message for everyone in the group (used for preview and sending). */
+/**
+ * Build the current message for everyone in the group (used for preview and sending).
+ * `alreadySent` = had one this period (today / this week / this month, by the group's frequency).
+ * The SMS fee is charged at most once a week per person, whatever the frequency.
+ */
 export async function buildWeeklyMessages(weekStart: string, g: SmsGroup): Promise<SmsPreview[]> {
   const { org, settings } = g;
-  const [people, pairs, { data: sent }, through] = await Promise.all([
+  const period = currentPeriod(smsFrequency(settings), weekStart);
+  const sentPeriodQuery = period.since
+    ? orgDb(org.id).select("sms_logs", "person_id").eq("status", "sent").gte("created_at", period.since)
+    : null;
+  const [people, pairs, { data: sent }, through, payTo, periodRows] = await Promise.all([
     listMembers(org.id),
     getPairs(org.id),
     orgDb(org.id).select("sms_logs", "person_id").eq("week_start", weekStart).eq("status", "sent"),
     closedThrough(org.id),
+    payDetailsFor(org.id),
+    sentPeriodQuery,
   ]);
   // The fee is dated the week's last day; once that day is closed it can't be added any more.
   const weekClosed = !!through && addDays(weekStart, 6) <= through;
   const names = new Map(people.map((p) => [p.id, p.full_name.split(" ")[0]]));
-  const sentSet = new Set((sent ?? []).map((s) => s.person_id));
+  const sentThisWeek = new Set((sent ?? []).map((s) => s.person_id));
+  const sentThisPeriod = periodRows ? new Set((periodRows.data ?? []).map((s) => s.person_id)) : sentThisWeek;
   const collector = settings.collector_id;
 
   return people.map((p) => {
     const b = summarize(p.id, pairs);
-    const alreadySent = sentSet.has(p.id);
-    const fee = !alreadySent && !weekClosed && collector && collector !== p.id ? Number(settings.sms_fee) : 0;
+    const alreadySent = sentThisPeriod.has(p.id);
+    const fee = !sentThisWeek.has(p.id) && !weekClosed && collector && collector !== p.id ? Number(settings.sms_fee) : 0;
     const render = (smsFee: number) => {
       const lines = new Map(b.owes.map((o) => [o.personId, o.amount]));
       if (smsFee && collector) lines.set(collector, (lines.get(collector) ?? 0) + smsFee);
-      const oweLines = [...lines.entries()]
-        .map(([id, amt]) => `Rs.${n(amt)} to ${names.get(id) ?? "?"}`)
-        .join(", ");
+      // "Rs.1,200 to Kavi (BOC 8012345678)": where to send it, when the person has added bank details.
+      const oweLines = (withBank: boolean) =>
+        [...lines.entries()]
+          .map(([id, amt]) => `Rs.${n(amt)} to ${names.get(id) ?? "?"}${withBank && payTo.has(id) ? ` (${payTo.get(id)})` : ""}`)
+          .join(", ");
       const vars = {
         name: p.full_name,
-        week: fmtWeek(weekStart),
-        oweLines: oweLines || "nothing to pay",
+        week: period.label,
+        oweLines: oweLines(true) || "nothing to pay",
         total: b.totalOwe + smsFee,
         link: `${appUrl()}/b/${p.view_token}`,
         group: org.name,
       };
-      const message = renderTemplate(settings.sms_template, vars);
-      // Owing many people can push past the SMS limit; the bill link has the breakdown anyway.
-      return message.length > SMS_MAX_CHARS
-        ? renderTemplate(settings.sms_template, { ...vars, oweLines: `${lines.size} people (see link)` })
-        : message;
+      // Owing many people can push past the SMS limit: drop the bank details, then the names
+      // (the bill link has the breakdown and bank details anyway).
+      for (const owe of [vars.oweLines, oweLines(false) || "nothing to pay", `${lines.size} people (see link)`]) {
+        const message = renderTemplate(settings.sms_template, { ...vars, oweLines: owe });
+        if (message.length <= SMS_MAX_CHARS) return message;
+      }
+      return renderTemplate(settings.sms_template, { ...vars, oweLines: `${lines.size} people (see link)` });
     };
     return {
       personId: p.id,
@@ -187,10 +232,10 @@ async function sentThisMonth(orgId: string) {
 }
 
 /**
- * Send the weekly SMS.
+ * Send the group's SMS (daily, weekly or monthly; logged under the week it went out in).
  * - memberIds given (manual): send to exactly those people.
- * - Otherwise (scheduled): everyone who owes something and hasn't had this week's SMS yet.
- * - The SMS fee is charged once per person per week, owed to the collector.
+ * - Otherwise (scheduled): everyone who owes something and hasn't had this period's SMS yet.
+ * - The SMS fee is charged at most once per person per week, owed to the collector.
  */
 export async function sendWeeklySms(opts: {
   weekStart: string;

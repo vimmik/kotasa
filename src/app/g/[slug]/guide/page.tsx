@@ -20,7 +20,8 @@ import { can, requireMember } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
 import { listMembers } from "@/lib/ledger";
 import { ADMIN_PERMISSIONS } from "@/lib/permissions";
-import { WEEKDAYS } from "@/lib/time";
+import { receiptScanEnabled } from "@/lib/receipt";
+import { smsScheduleText } from "@/lib/sms";
 import { rs } from "@/lib/types";
 import { Avatar, PageHeader } from "@/components/bits";
 
@@ -30,7 +31,6 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
   const { org, settings, base } = ctx;
   const people = await listMembers(org.id);
   const collector = people.find((p) => p.id === settings.collector_id)?.full_name.split(" ")[0];
-  const billDay = WEEKDAYS[settings.billing_weekday - 1];
   const isAdmin = ADMIN_PERMISSIONS.some((p) => ctx.perms.has(p));
 
   const features: Feature[] = [
@@ -41,7 +41,9 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
       steps: [
         "Tap Add expense, enter what it was and how much.",
         "Choose who paid. It doesn't have to be you. Paid together? Tap Someone else paid part of it and add how much each person put in.",
-        "Tick the people it's for. Split equally (the default) or type a custom amount per person.",
+        "Tick the people it's for. Split equally (the default), by item, or type a custom amount per person.",
+        "Shared a restaurant bill? Choose By item, add each dish and tick who had it. Tax, charges and discounts are shared in proportion to what each person had, so nobody pays for someone else's bigger order.",
+        ...(receiptScanEnabled() ? ["Have the bill? Tap Scan a bill and the items, tax, charges and discounts fill in by themselves."] : []),
         "Save. Everyone's balance updates straight away.",
       ],
       href: can(ctx, "expense.add") ? `${base}/expenses/new` : `${base}/expenses`,
@@ -95,13 +97,13 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
       : []),
     {
       icon: ChatText,
-      title: "The weekly SMS",
-      body: `Every ${billDay}, people who owe money get one SMS with their total and a link to their bill.`,
+      title: "The SMS",
+      body: `${smsScheduleText(settings).replace(/^./, (c) => c.toUpperCase())}, people who owe money get one SMS with their total and a link to their bill.`,
       steps: [
-        "The SMS shows how much you owe and who to pay.",
+        "The SMS shows how much you owe, who to pay and their bank details (when they've added them in Account).",
         "The link opens a read-only bill showing where each amount came from. No login needed.",
         Number(settings.sms_fee) > 0
-          ? `A small SMS fee of ${rs(settings.sms_fee)} is added once a week${collector ? `, owed to ${collector}` : ""}.`
+          ? `A small SMS fee of ${rs(settings.sms_fee)} is added at most once a week${collector ? `, owed to ${collector}` : ""}.`
           : "There is no SMS fee in this group.",
         "People without the app get this SMS too, so everyone stays in the loop.",
       ],
@@ -143,7 +145,7 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
           {[
             { n: 1, title: "Someone pays", body: "For lunch, an Uber, a cake. Whoever has cash on them." },
             { n: 2, title: "Add it and split it", body: `${BRAND.name} works out each person's share to the cent.` },
-            { n: 3, title: "Settle weekly", body: `On ${billDay} everyone sees one clear total and pays it.` },
+            { n: 3, title: "Settle up", body: `${smsScheduleText(settings).replace(/^./, (c) => c.toUpperCase())} everyone gets one clear total and pays it.` },
           ].map((s) => (
             <li key={s.n} className="flex gap-3 border-line px-5 py-4 not-last:border-b sm:not-last:border-r sm:not-last:border-b-0">
               <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-ink">
@@ -229,7 +231,7 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
               <p className="font-semibold">The Admin area</p>
               <p className="text-muted">
                 Add people and invite links, approve joins and set roles. Set the daily menu and meal cutoffs, see the
-                packing list, fix anyone&apos;s order, preview and send the weekly SMS, close the books so settled weeks
+                packing list, fix anyone&apos;s order, preview and send the SMS, close the books so settled weeks
                 stop changing, and turn modules on or off in Settings. You only see the tabs your role allows.
               </p>
             </div>
@@ -263,8 +265,9 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             minutes, Kotasa asks whether it really is a second payment before saving it.
           </Faq>
           <Faq q="Where do I send the money?">
-            To the person Kotasa says you owe, by cash or bank transfer. If your group added a How to pay note (bank
-            details, who collects cash), it shows on Home and on your bill link whenever you owe something.
+            To the person Kotasa says you owe, by cash or bank transfer. If they added their bank details (Account › How
+            people pay you), they show next to their name on Home, the payment page, your bill link and the SMS. If your
+            group added a How to pay note, it shows on Home and on your bill link whenever you owe something.
           </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Tap Pay next to them on Home, or record it from Account › Record a payment. Pick who you paid and the amount. It works for cash, bank transfers or anything else.

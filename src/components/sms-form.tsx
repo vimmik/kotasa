@@ -20,10 +20,10 @@ export function SmsSendForm({ week, smsEnabled }: { week: string; smsEnabled: bo
         <button type="button" className="btn-ghost" onClick={() => boxes().forEach((c) => (c.checked = false))}>Clear</button>
         <ConfirmButton
           pendingText="Sending…"
-          title="Send this week's SMS?"
+          title="Send the SMS now?"
           message={() => {
             const n = [...boxes()].filter((c) => c.checked).length;
-            return `It goes to ${n} ${n === 1 ? "person" : "people"} right away, and the weekly SMS fee is added to their bills.`;
+            return `It goes to ${n} ${n === 1 ? "person" : "people"} right away, and the SMS fee is added to their bills (once a week).`;
           }}
           confirmText="Send now"
         >

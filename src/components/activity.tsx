@@ -51,7 +51,7 @@ function describe(it: Item, me: string, name: (id: string) => string) {
         return { title, sub: iOwe ? `${other} paid part of the bill` : `You paid part of the bill · owed by ${other}` };
       return { title, sub: iOwe ? `Meal · owed to ${other}` : `Meal · ${other} owes you` };
     case "sms":
-      return { title: "Weekly SMS fee", sub: iOwe ? `Owed to ${other}` : `${other} owes you` };
+      return { title: "SMS fee", sub: iOwe ? `Owed to ${other}` : `${other} owes you` };
     case "settlement":
       // stored reversed: debtor = receiver, creditor = payer
       return iOwe

@@ -4,6 +4,7 @@ import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
 import { todayColombo } from "@/lib/time";
+import { receiptScanEnabled } from "@/lib/receipt";
 import { PageHeader } from "@/components/bits";
 import { ExpenseForm } from "@/components/expense-form";
 
@@ -35,6 +36,7 @@ export default async function NewExpensePage(props: PageProps<"/g/[slug]/expense
         canAddGuests={ctx.perms.has("members.invite")}
         defaultBudget={typeof sp.budget === "string" ? sp.budget : undefined}
         closedThrough={through}
+        scanEnabled={receiptScanEnabled()}
       />
     </div>
   );

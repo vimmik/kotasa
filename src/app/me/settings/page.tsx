@@ -5,7 +5,7 @@ import { loginMethods } from "@/lib/logins";
 import { displayPhone } from "@/lib/phone";
 import { getGroupFeeds, getMe } from "@/lib/personal";
 import type { Profile } from "@/lib/types";
-import { PinForm } from "@/components/account-forms";
+import { PayDetailsForm, PinForm } from "@/components/account-forms";
 import { PageHeader } from "@/components/bits";
 import { ConnectPhoneForm } from "@/components/sign-in-forms";
 import { ConnectGoogle } from "@/components/google-button";
@@ -41,6 +41,18 @@ export default async function MeSettings({ searchParams }: PageProps<"/me/settin
       <MoneySettingsForm currency={currency} income={profile.monthly_income} payday={profile.payday} />
 
       <SignInCard profile={profile} methods={methods} />
+
+      {profile.pay_details !== undefined && (
+        <section className="card space-y-3">
+          <div>
+            <h2 className="font-semibold">How people pay you</h2>
+            <p className="text-sm text-muted">
+              Used in all your groups. To use a different account in one group, change it on that group&apos;s Account page.
+            </p>
+          </div>
+          <PayDetailsForm general={profile.pay_details ?? null} />
+        </section>
+      )}
 
       <section className="card space-y-1">
         <h2 className="font-semibold">Spending from your groups</h2>

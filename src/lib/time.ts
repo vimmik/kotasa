@@ -78,4 +78,15 @@ export function isPastCutoff(date: string, cutoff: string): boolean {
   return now.hour * 60 + now.minute >= h * 60 + m;
 }
 
+/** Number of days in the month of d (28-31). */
+export function daysInMonth(d: string): number {
+  const [y, m] = d.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** "November 2026" */
+export function fmtMonth(d: string) {
+  return toUTC(d).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

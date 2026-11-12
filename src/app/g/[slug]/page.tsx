@@ -6,6 +6,7 @@ import { closedThrough } from "@/lib/closing";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { expenseIconMap, getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
+import { payDetailsFor } from "@/lib/pay-details";
 import { fmtDay, isPastCutoff, todayColombo } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
@@ -19,7 +20,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const sp = await props.searchParams;
   const today = todayColombo();
 
-  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through] = await Promise.all([
+  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through, payTo] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     // Several lines make one item (one per person in an expense), so read more than are shown.
@@ -32,6 +33,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
       ? orgDb(org.id).select("meal_joins", "meal").eq("member_id", me.id).eq("join_date", today)
       : Promise.resolve({ data: [] as { meal: string }[] }),
     closedThrough(org.id),
+    payDetailsFor(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const slotLabel = new Map(slots.map((s) => [s.key, s.label]));
@@ -100,6 +102,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                     key={o.personId}
                     name={names.get(o.personId) ?? "?"}
                     line={`You owe ${rs(o.amount)}`}
+                    details={payTo.get(o.personId)}
                     tone="text-danger"
                     href={`${base}/settle?to=${o.personId}&amount=${o.amount}`}
                     action="Pay"
@@ -188,13 +191,29 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
 }
 
 /** One person you owe or who owes you: the amount sits under the name, so long names fit on a phone. */
-function BalanceRow({ name, line, tone, href, action }: { name: string; line: string; tone: string; href: string; action: string }) {
+function BalanceRow({
+  name,
+  line,
+  details,
+  tone,
+  href,
+  action,
+}: {
+  name: string;
+  line: string;
+  /** their bank details, when you owe them */
+  details?: string;
+  tone: string;
+  href: string;
+  action: string;
+}) {
   return (
     <li className="flex items-center gap-3 py-2.5">
       <Avatar name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{name}</p>
         <p className={`text-sm font-medium tabular-nums ${tone}`}>{line}</p>
+        {details && <p className="text-xs break-words text-muted">Pay to: {details}</p>}
       </div>
       <Link href={href} className="btn-ghost shrink-0 px-3 py-1.5 text-xs">
         {action}

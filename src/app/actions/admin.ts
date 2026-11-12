@@ -320,6 +320,10 @@ export async function saveBilling(_: ActionState, f: FormData): Promise<ActionSt
   const cap = Number(str(f, "sms_monthly_cap"));
   const tpl = str(f, "sms_template");
   const collector = str(f, "collector_id") || null;
+  const frequency = str(f, "sms_frequency") || "weekly";
+  const monthday = Number(str(f, "billing_monthday") || 31);
+  if (!["daily", "weekly", "monthly"].includes(frequency)) return { error: "Pick how often the SMS goes out" };
+  if (!(Number.isInteger(monthday) && monthday >= 1 && monthday <= 31)) return { error: "Pick the day of the month" };
   if (!(day >= 1 && day <= 7)) return { error: "Pick the billing day" };
   if (!(hour >= 0 && hour <= 23)) return { error: "Hour must be 0–23" };
   if (!(fee >= 0)) return { error: "SMS fee must be 0 or more" };
@@ -334,6 +338,8 @@ export async function saveBilling(_: ActionState, f: FormData): Promise<ActionSt
   const { error } = await orgDb(ctx.org.id).update("org_settings", {
     // Only once the 20261024 column exists (the field is shown only then).
     ...(ctx.settings.pay_note !== undefined ? { pay_note: payNote } : {}),
+    // Only once the 20261112 columns exist (the fields are shown only then).
+    ...(ctx.settings.sms_frequency !== undefined ? { sms_frequency: frequency, billing_monthday: monthday } : {}),
     collector_id: collector,
     billing_weekday: day,
     sms_send_hour: hour,
