@@ -141,6 +141,23 @@ export function PersonRow({
               <OrgField />
               <input type="hidden" name="id" value={p.id} />
               <Fields p={p} />
+              {!p.registered && p.pay_details !== undefined && (
+                <div>
+                  <label className="label" htmlFor={`pay-${p.id}`}>Bank details (optional)</label>
+                  <input
+                    id={`pay-${p.id}`}
+                    name="pay_details"
+                    defaultValue={p.pay_details ?? ""}
+                    maxLength={120}
+                    className="input"
+                    placeholder="BOC 8012345678, M Perera"
+                  />
+                  <p className="mt-1 text-xs text-muted">
+                    When people owe {p.full_name.split(" ")[0]}, they see this and get it in their SMS. Once{" "}
+                    {p.full_name.split(" ")[0]} joins with the app, they manage it themselves.
+                  </p>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-4">
                 <input
                   name="pin"

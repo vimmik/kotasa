@@ -39,7 +39,9 @@ Product decisions Kavi made (don't change without asking):
   week (whatever the frequency), owed to the collector.
 - **Bank details:** a person's `profiles.pay_details` (all groups) or `members.pay_details` (one group, overrides).
   Shown only to people who owe them: Home, settle page, bill link, and in `{owe_lines}` of the SMS
-  (`payDetailsFor`, lib/pay-details.ts). Edited in Me › Settings and the group's Account page.
+  (`payDetailsFor`, lib/pay-details.ts). Edited in Me › Settings and the group's Account page. An admin
+  (`members.manage`) can set them for a **guest only** (People › Edit); never for someone with the app, so nobody
+  can redirect another person's payments.
 - **Unpaid balances carry forward** automatically.
 - **Login:** phone + 6-digit PIN (for people an admin adds), and Google. New people join a group by
   invite link (optionally needing approval) or get added by an admin. Leaving with a balance is allowed:

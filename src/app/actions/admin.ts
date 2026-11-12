@@ -93,6 +93,11 @@ export async function saveMember(_: ActionState, f: FormData): Promise<ActionSta
     if (status === "inactive" && target.role_key === "owner" && (await ownerCount(ctx.org.id)) <= 1)
       return { error: "A group needs at least one owner" };
   }
+  // Bank details: only for a guest. People with the app set their own (Account page), so an admin
+  // can't send someone's payments to another account. The field exists only after 20261112.
+  const payDetails = str(f, "pay_details").replace(/\s+/g, " ");
+  if (payDetails.length > 120) return { error: "Keep the bank details under 120 characters" };
+  const setPay = f.has("pay_details") && !!target && !target.profile_id;
   const nextRole = roleKey || target?.role_key || "member";
   if (nextRole !== (target?.role_key ?? "member")) {
     if (!can(ctx, "members.manage")) return denied("change roles");
@@ -106,6 +111,7 @@ export async function saveMember(_: ActionState, f: FormData): Promise<ActionSta
     email,
     role_key: nextRole,
     ...(target && target.status !== "pending" ? { status } : {}),
+    ...(setPay ? { pay_details: payDetails || null } : {}),
   };
   let member: Member;
   if (target) {
