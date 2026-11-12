@@ -3,8 +3,9 @@
 import { refresh } from "next/cache";
 import { redirect, RedirectType } from "next/navigation";
 import { can, requireMemberFromForm } from "@/lib/auth";
-import { closedError } from "@/lib/closing";
-import { saveSettlement } from "@/lib/ledger";
+import { canDecide, closeClaim, confirmClaim, createClaim, getClaim, needsConfirming } from "@/lib/claims";
+import { closedError, closedThrough } from "@/lib/closing";
+import { listMembers, saveSettlement } from "@/lib/ledger";
 import { orgDb } from "@/lib/org-db";
 import { isValidDate, todayColombo } from "@/lib/time";
 import { round2, rs, type ActionState } from "@/lib/types";
@@ -25,8 +26,6 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
   if (!UUID.test(from) || !UUID.test(to) || from === to) return { error: "Pick who paid whom" };
   if (!(amount > 0)) return { error: "Enter the amount" };
   if (!isValidDate(paidOn)) return { error: "Pick a date" };
-  const closed = await closedError(ctx.org.id, paidOn);
-  if (closed) return { error: closed };
   if (!can(ctx, "settle.record_any") && me !== from && me !== to)
     return { error: "You can only record payments you made or received" };
 
@@ -34,14 +33,27 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
   const { data: found } = await db.select("members", "id, full_name").in("id", [from, to]).neq("status", "pending");
   const people = (found ?? []) as { id: string; full_name: string }[];
   if (people.length !== 2) return { error: "Both people must be in this group" };
-
   const key = str(f, "client_key");
+
+  // Paid earlier: it waits for the person who got the money to confirm it (lib/claims.ts), so a
+  // payment nobody recorded at the time can't be counted on one person's word.
+  if (needsConfirming({ to, paidOn, by: me })) {
+    const claimed = await createClaim(ctx.org.id, { from, to, amount, paidOn, note, by: me, key: UUID.test(key) ? key : null });
+    if (claimed.error) return { error: claimed.error };
+    refresh();
+    redirect(`${ctx.base}?claimed=${to}&amt=${amount}`, RedirectType.replace);
+  }
+
+  // A date the books are closed for: save it today and keep the real date in its label.
+  const through = await closedThrough(ctx.org.id);
+  const closed = !!through && paidOn <= through;
+
   const saved = await saveSettlement(ctx.org.id, {
     from,
     to,
     amount,
-    paidOn,
-    note,
+    paidOn: closed ? todayColombo() : paidOn,
+    note: closed ? `${note ?? "Payment"} · paid ${longDay(paidOn)}` : note,
     by: me,
     key: UUID.test(key) ? key : null,
     allowDuplicate: f.get("allow_duplicate") === "on",
@@ -61,6 +73,32 @@ export async function recordSettlement(_: ActionState, f: FormData): Promise<Act
   refresh();
   // When I paid someone, Home offers a "Tell them" message.
   redirect(`${ctx.base}?settled=1${me === from ? `&paid=${to}&amt=${amount}` : ""}`, RedirectType.replace);
+}
+
+/** "5 Nov 2026", as the database writes it (confirm_settlement_claim). */
+function longDay(d: string) {
+  return new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** A payment waiting to be confirmed: confirm / decline (the confirmer) or cancel (whoever recorded it). */
+export async function decideClaim(f: FormData) {
+  const ctx = await requireMemberFromForm(f);
+  const me = ctx.member.id;
+  const decision = str(f, "decision");
+  const claim = await getClaim(ctx.org.id, str(f, "id"));
+  if (claim?.status === "pending") {
+    if (decision === "cancel") {
+      if (claim.recorded_by === me) await closeClaim(ctx.org.id, claim.id, me, "cancelled");
+    } else if (decision === "confirm" || decision === "decline") {
+      const people = await listMembers(ctx.org.id, { includeInactive: true });
+      const map = new Map(people.map((p) => [p.id, { id: p.id, registered: p.registered, status: p.status }]));
+      if (canDecide(claim, me, can(ctx, "settle.record_any"), map)) {
+        if (decision === "confirm") await confirmClaim(ctx.org.id, claim.id, me);
+        else await closeClaim(ctx.org.id, claim.id, me, "declined");
+      }
+    }
+  }
+  refresh();
 }
 
 export async function deleteSettlement(f: FormData) {

@@ -36,7 +36,7 @@ export default async function SettlePage(props: PageProps<"/g/[slug]/settle">) {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <PageHeader title="Record a payment" sub="Cash or bank transfer — note it here so balances stay right." />
+      <PageHeader title="Record a payment" sub="Cash or bank transfer — note it here so balances stay right. Paid earlier and forgot? Pick that date." />
       <SettleForm
         me={me.id}
         isAdmin={can(ctx, "settle.record_any")}
@@ -47,6 +47,7 @@ export default async function SettlePage(props: PageProps<"/g/[slug]/settle">) {
         initial={initial}
         today={todayColombo()}
         closedThrough={through}
+        hasApp={people.filter((p) => p.registered && p.status === "active").map((p) => p.id)}
         // Only the people you owe: that's who you'd send money to.
         payTo={Object.fromEntries(b.owes.filter((o) => details.has(o.personId)).map((o) => [o.personId, details.get(o.personId)!]))}
       />

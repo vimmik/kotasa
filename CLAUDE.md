@@ -77,6 +77,11 @@ Product decisions Kavi made (don't change without asking):
   did nothing, people tapped again and paid twice).
 - Payments go through `saveSettlement` (lib/ledger.ts) -> `record_settlement` RPC (20261023): a per-form
   `client_key` makes a double submit save once, and the same payment within 10 minutes needs a confirm tick.
+- **Paid earlier** (Kavi, 2026-11-12, migration 20261113): a payment dated before today, recorded by anyone but the
+  receiver, goes to `settlement_claims` (pending, NOT in the ledger) and waits for the receiver to confirm on Home
+  (a guest receiver: anyone with `settle.record_any`, never the recorder). `confirm_settlement_claim` RPC saves it once;
+  a date closed by then is saved today with "paid <date>" in the note. Not received = declined; the recorder can cancel.
+  lib/claims.ts, components/payment-claims.tsx, `decideClaim` in actions/money.ts.
 - Dev mode validates instant navigation. A layout's `<Suspense>` doesn't cover client navigations
   between its child pages, so every segment with a layout has its own `loading.tsx`
   (`g/[slug]/` and `g/[slug]/admin/`). Add one when you add a new layout.
@@ -231,6 +236,9 @@ A settlement A→B is stored as **B owes A** so it cancels A's debt.
 is what `getPairs` calls: with `org_settings.simplify_debts` on (default, Settings › Modules "Fewest payments") and
 no circle, it starts from pair_balances and shortens chains (X owes Y owes Z -> X pays Z) only when X and Z share a
 ledger line or Z is the collector, so nobody is told to pay a stranger (20261016); else it returns pair_balances.
+Then `pass_through` (20261113, simplify on only): **anyone whose net is >= 0 is never told to pay**; what passes through
+them goes debtor -> creditor directly, even to a stranger (Kavi: a settled person must never be asked to pay again).
+Fuzz-tested with PGlite: without it, a payment between two people could give a settled third person "you owe X".
 Never compute balances in JS from raw tables; use `getPairs(orgId)` / `summarize()`.
 
 **Closing the books** (20261018, Admin › Close books, permission `books.close`): `close_books(org, through, by)` stores

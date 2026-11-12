@@ -1,17 +1,19 @@
 import Link from "next/link";
-import { ArrowRight, BellRinging, BookOpenText, ChartBar, CheckCircle, ForkKnife, PaperPlaneTilt } from "@phosphor-icons/react/ssr";
-import { requireMember } from "@/lib/auth";
+import { ArrowRight, BellRinging, BookOpenText, ChartBar, CheckCircle, Clock, ForkKnife, PaperPlaneTilt } from "@phosphor-icons/react/ssr";
+import { can, requireMember } from "@/lib/auth";
 import { appUrl, BRAND } from "@/lib/brand";
+import { canDecide, confirmerFor, getClaims } from "@/lib/claims";
 import { closedThrough } from "@/lib/closing";
 import { getLedgerFor, getPairs, listMembers, summarize } from "@/lib/ledger";
 import { expenseIconMap, getMealSlots } from "@/lib/org-config";
 import { orgDb } from "@/lib/org-db";
 import { payDetailsFor } from "@/lib/pay-details";
 import { fmtDay, isPastCutoff, todayColombo } from "@/lib/time";
-import { paidText, remindText } from "@/lib/messages";
+import { confirmText, paidText, remindText } from "@/lib/messages";
 import { rs } from "@/lib/types";
 import { ActivityList } from "@/components/activity";
 import { Avatar, EmptyState, PayNote } from "@/components/bits";
+import { PaymentClaims } from "@/components/payment-claims";
 import { PayTo, ShareButton } from "@/components/share";
 
 export default async function Home(props: PageProps<"/g/[slug]">) {
@@ -22,7 +24,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
   const sp = await props.searchParams;
   const today = todayColombo();
 
-  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through, payTo] = await Promise.all([
+  const [people, pairs, rows, { data: todays }, slots, { data: myJoins }, through, payTo, claims] = await Promise.all([
     listMembers(org.id, { includeInactive: true }),
     getPairs(org.id),
     // Several lines make one item (one per person in an expense), so read more than are shown.
@@ -36,13 +38,31 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
       : Promise.resolve({ data: [] as { meal: string }[] }),
     closedThrough(org.id),
     payDetailsFor(org.id),
+    getClaims(org.id),
   ]);
   const names = new Map(people.map((p) => [p.id, p.full_name]));
   const hasApp = new Set(people.filter((p) => p.registered).map((p) => p.id));
   // Just recorded "I paid X": offer to tell them (the ids come from the URL, so check them).
   const toldId = typeof sp.paid === "string" && names.has(sp.paid) && sp.paid !== me.id ? sp.paid : null;
   const toldAmount = typeof sp.amt === "string" && Number(sp.amt) > 0 ? Number(sp.amt) : 0;
+  // Just recorded a payment made earlier: it waits for the receiver (or an admin, for a guest).
+  const claimedTo = typeof sp.claimed === "string" && names.has(sp.claimed) ? sp.claimed : null;
   const slotLabel = new Map(slots.map((s) => [s.key, s.label]));
+  // Payments made earlier, waiting for the person who got the money (lib/claims.ts).
+  const byId = new Map(people.map((p) => [p.id, { id: p.id, registered: p.registered, status: p.status }]));
+  const canAny = can(ctx, "settle.record_any");
+  const toDecide = claims.filter((c) => canDecide(c, me.id, canAny, byId));
+  const mine = (c: (typeof claims)[number]) => c.from_person === me.id || c.recorded_by === me.id;
+  const waiting = claims.filter((c) => c.status === "pending" && mine(c) && !toDecide.includes(c));
+  const declined = claims.filter((c) => c.status === "declined" && mine(c));
+  // "Tell them" only when I'm the one who paid.
+  const justClaimed = claimedTo
+    ? waiting.find((c) => c.to_person === claimedTo && c.from_person === me.id && c.amount === toldAmount)
+    : undefined;
+  const confirmerName = (c: (typeof claims)[number]) => {
+    const who = confirmerFor(c, byId);
+    return who ? (names.get(who) ?? "them").split(" ")[0] : "an admin";
+  };
   const b = summarize(me.id, pairs);
   // Once every meal of the day is past its cutoff, point people at tomorrow instead.
   const openSlots = slots.filter((s) => !s.archived);
@@ -69,6 +89,40 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
           )}
         </div>
       )}
+
+      {claimedTo && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-amber-soft px-3 py-2 text-sm font-semibold text-amber-ink">
+          <p className="flex flex-1 items-center gap-2">
+            <Clock size={16} weight="fill" aria-hidden="true" />
+            {hasApp.has(claimedTo)
+              ? `Sent to ${names.get(claimedTo)!.split(" ")[0]} to confirm. It counts once they do.`
+              : `${names.get(claimedTo)!.split(" ")[0]} doesn't have the app, so an admin confirms it. It counts once they do.`}
+          </p>
+          {justClaimed && hasApp.has(claimedTo) && (
+            <ShareButton
+              className="btn-ghost min-h-8 px-3 py-1 text-xs"
+              text={confirmText({
+                to: names.get(claimedTo)!,
+                group: org.name,
+                amount: justClaimed.amount,
+                day: fmtDay(justClaimed.paid_on),
+                link: `${appUrl()}${base}`,
+              })}
+            >
+              <PaperPlaneTilt size={14} aria-hidden="true" /> Tell {names.get(claimedTo)!.split(" ")[0]}
+            </ShareButton>
+          )}
+        </div>
+      )}
+
+      <PaymentClaims
+        me={me.id}
+        toDecide={toDecide}
+        waiting={waiting}
+        declined={declined}
+        names={names}
+        confirmerName={confirmerName}
+      />
 
       <section className="card relative overflow-hidden p-0">
         {/* soft brand glow in the corner, tinted by the theme */}

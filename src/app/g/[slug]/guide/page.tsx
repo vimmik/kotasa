@@ -268,8 +268,9 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
           {settings.simplify_debts !== false && (
             <Faq q="Why do I pay someone other than who paid for my share?">
               This group settles with fewer payments. If you owe someone who owes another person, Kotasa may ask you to pay
-              that person directly, but only someone you have shared with in this group, or the group&apos;s collector. Your
-              total stays the same; only who you pay changes. Admins can turn this off in Settings.
+              that person directly, usually someone you have shared with in this group, or the group&apos;s collector. Your
+              total stays the same; only who you pay changes. Someone who is owed money overall, or has settled, is never
+              asked to pay. Admins can turn this off in Settings.
             </Faq>
           )}
           <Faq q="Why can't I change an old expense or payment?">
@@ -297,6 +298,11 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
           </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Tap Pay next to them on Home, or record it from Account › Record a payment. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
+          </Faq>
+          <Faq q="I paid someone days ago and forgot to record it. What now?">
+            Record it with the day you paid. A payment dated before today waits for the person you paid to confirm they got
+            it (an admin confirms for someone without the app), and your balance changes once they do. Until then Home
+            shows it as waiting, so you don&apos;t pay twice. If they tap Not received, it isn&apos;t counted.
           </Faq>
           <Faq q="I share several groups with the same person. Where's the total?">
             Open Your groups (the group switcher). Across all your groups lists everyone you owe or who owes you, with
