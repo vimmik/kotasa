@@ -287,6 +287,14 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             people pay you), they show next to their name on Home, the payment page, your bill link and the SMS. If your
             group added a How to pay note, it shows on Home and on your bill link whenever you owe something.
           </Faq>
+          <Faq q="Why do I owe this person that much?">
+            On Home, tap why? next to their name. You see what is directly between you two, every expense, meal and
+            payment behind it, and whether part of the amount was moved there to keep the number of payments small.
+          </Faq>
+          <Faq q="Can I get my history into Excel?">
+            Yes. Account › History has a CSV download of everything that involves you. Insights has one for all of the
+            group&apos;s expenses in a month.
+          </Faq>
           <Faq q="I paid someone outside the app. What now?">
             Tap Pay next to them on Home, or record it from Account › Record a payment. Pick who you paid and the amount. It works for cash, bank transfers or anything else.
           </Faq>

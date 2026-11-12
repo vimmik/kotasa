@@ -127,7 +127,12 @@ src/app/g/[slug]/            one group (layout: requireMember(slug), group switc
   insights/                  one month of group spending (?month=YYYY-MM): totals vs last month, by category
                              (your share / everyone else), who paid, biggest. Expenses + meal orders; not balances,
                              payments or SMS fees. View = components/insights-view.tsx
-  account/                   profile, theme, PIN, bill link, history, leave group
+  with/[id]/                 "why do I owe X this much?" (Home › why?): amount to settle (getPairs), what is directly
+                             between the two (getDirectBalance = pair_balances), the difference explained (fewest
+                             payments / closed books), every line between them (getLedgerBetween)
+  export/route.ts            CSV downloads: ?type=history (my lines, all time), ?type=expenses&month=YYYY-MM
+                             (lib/export.ts; lib/csv.ts toCsv guards against spreadsheet formulas)
+  account/                   profile, theme, PIN, bill link, history (+ CSV), leave group
   guide/                     "How Kotasa works": idea, benefits, balance example, per-feature steps (only enabled
                              modules), admin note, FAQ. Linked from Home and Account. Keep it in sync with features.
   admin/                     packing, menu, orders, people (invites, approvals, roles), sms, settings;
@@ -337,8 +342,7 @@ Not done yet / next steps:
    Vishwa (Vimmik teammates, real numbers). Keep it for testing; clear only its expenses/sms_logs after a test.
    Request sender ID "Kotasa" in the Text.lk portal (letter + NIC/BR), then set `TEXTLK_SENDER_ID`.
 
-Ideas Kavi may want later (ask first): simplify debts across people, receipts/photos, notifications,
-CSV export, Sinhala UI. Public signup (email OTP), billing/plans and launch hardening are phases 2–4 in the plan.
+Ideas Kavi may want later (ask first): receipts/photos (stored), push notifications, Sinhala UI. Public signup (email OTP), billing/plans and launch hardening are phases 2–4 in the plan.
 
 ## Conventions
 - Money: `numeric(12,2)` in DB, `round2()` in TS, format with `rs()`. Equal splits via `splitEqually` (cent-exact).

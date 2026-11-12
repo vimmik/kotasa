@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CaretLeft, CaretRight, ChartBar } from "@phosphor-icons/react/ssr";
+import { CaretLeft, CaretRight, ChartBar, DownloadSimple } from "@phosphor-icons/react/ssr";
 import { requireMember } from "@/lib/auth";
 import { listMembers } from "@/lib/ledger";
 import { getCategories } from "@/lib/org-config";
@@ -162,6 +162,14 @@ export default async function InsightsPage(props: PageProps<"/g/[slug]/insights"
             amount: Number(e.amount),
           }))}
         />
+      )}
+      {now.expenses.length > 0 && (
+        <p className="text-center">
+          {/* A plain link: a file download from a route handler, not a page. */}
+          <a href={`${base}/export?type=expenses&month=${month}`} download className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand">
+            <DownloadSimple size={15} aria-hidden="true" /> Download {monthName} expenses (CSV)
+          </a>
+        </p>
       )}
     </div>
   );

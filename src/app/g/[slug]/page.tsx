@@ -116,6 +116,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                 {b.owes.map((o) => (
                   <BalanceRow
                     key={o.personId}
+                    why={`${base}/with/${o.personId}`}
                     name={names.get(o.personId) ?? "?"}
                     line={`You owe ${rs(o.amount)}`}
                     details={payTo.get(o.personId)}
@@ -139,6 +140,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
                 {b.owed.map((o) => (
                   <BalanceRow
                     key={o.personId}
+                    why={`${base}/with/${o.personId}`}
                     name={names.get(o.personId) ?? "?"}
                     line={`Owes you ${rs(o.amount)}`}
                     remind={remindText({
@@ -228,6 +230,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
 /** One person you owe or who owes you: the amount sits under the name, so long names fit on a phone. */
 function BalanceRow({
   name,
+  why,
   line,
   details,
   remind,
@@ -236,6 +239,8 @@ function BalanceRow({
   action,
 }: {
   name: string;
+  /** the page that shows how this amount adds up */
+  why: string;
   line: string;
   /** their bank details, when you owe them */
   details?: string;
@@ -249,8 +254,12 @@ function BalanceRow({
     <li className="flex items-center gap-3 py-2.5">
       <Avatar name={name} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{name}</p>
-        <p className={`text-sm font-medium tabular-nums ${tone}`}>{line}</p>
+        <Link href={why} className="block rounded-lg" aria-label={`${name}: ${line}. See how it adds up`}>
+          <p className="truncate font-semibold">{name}</p>
+          <p className={`text-sm font-medium tabular-nums ${tone}`}>
+            {line} <span className="font-normal text-muted underline decoration-dotted underline-offset-2">why?</span>
+          </p>
+        </Link>
         {details && <PayTo details={details} className="mt-0.5" />}
       </div>
       {remind && (
