@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { recordSettlement } from "@/app/actions/money";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/ui";
 import { OrgField } from "@/components/org-field";
-import { addDays, fmtDay } from "@/lib/time";
+import { fmtDay } from "@/lib/time";
 import { rs } from "@/lib/types";
 import { PayTo } from "@/components/share";
 
@@ -22,6 +22,8 @@ type Props = {
   closedThrough?: string | null;
   /** bank details of the people you owe, by member id */
   payTo?: Record<string, string>;
+  /** members who have the app (they confirm payments made to them earlier) */
+  hasApp?: string[];
 };
 
 type Direction = "paid" | "received" | "between";
@@ -34,7 +36,7 @@ function newKey() {
   );
 }
 
-export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [], closedThrough = null, payTo = {} }: Props) {
+export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pairs = [], closedThrough = null, payTo = {}, hasApp = [] }: Props) {
   const [state, action] = useActionState(recordSettlement, null);
   const [key] = useState(newKey);
   const [direction, setDirection] = useState<Direction>(initial.direction);
@@ -42,6 +44,7 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
   const [payer, setPayer] = useState("");
   const [payee, setPayee] = useState("");
   const [amount, setAmount] = useState(initial.amount);
+  const [paidOn, setPaidOn] = useState(today);
   const others = people.filter((p) => p.id !== me);
   const between = direction === "between";
   const owedBetween = pairs.find((x) => x.debtor === payer && x.creditor === payee)?.amount;
@@ -52,7 +55,10 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
   // Paying someone the balances don't say you owe still counts, but it is often a mix-up.
   const expected = direction === "paid" ? Object.keys(owes) : Object.keys(owed);
   const offList = !between && !!other && !expected.includes(other);
-  const minDate = closedThrough ? addDays(closedThrough, 1) : undefined;
+  // Paid before today and recorded by someone other than the receiver: the receiver confirms it
+  // first (lib/claims.ts). Same rule as needsConfirming on the server.
+  const earlier = !!paidOn && paidOn < today && !!to && to !== me;
+  const receiver = name(to).split(" ")[0];
   const modes: [Direction, string][] = [
     ["paid", "I paid someone"],
     ["received", "Someone paid me"],
@@ -155,10 +161,27 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
         </div>
         <div>
           <label className="label" htmlFor="paid_on">Date</label>
-          <input id="paid_on" name="paid_on" type="date" defaultValue={today} min={minDate} className="input" />
-          {closedThrough && <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}</p>}
+          <input
+            id="paid_on"
+            name="paid_on"
+            type="date"
+            value={paidOn}
+            onChange={(e) => setPaidOn(e.target.value)}
+            className="input"
+          />
+          {closedThrough && paidOn && paidOn <= closedThrough ? (
+            <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}: it&apos;s saved today, with this date in its note</p>
+          ) : closedThrough ? (
+            <p className="mt-1 text-xs text-muted">Closed up to {fmtDay(closedThrough)}</p>
+          ) : null}
         </div>
       </div>
+      {earlier && (
+        <p className="rounded-xl bg-info-soft px-3 py-2 text-sm text-info-ink">
+          Paid earlier, so {hasApp.includes(to) ? receiver : `an admin (${receiver} doesn't have the app)`} confirms it
+          first. Balances don&apos;t change until then, so nobody pays twice.
+        </p>
+      )}
       <div>
         <label className="label" htmlFor="note">Note (optional)</label>
         <input id="note" name="note" className="input" placeholder="Cash at the office" />
@@ -170,7 +193,9 @@ export function SettleForm({ me, isAdmin, people, owes, owed, initial, today, pa
           <span>Yes, this is another payment, not the same one again</span>
         </label>
       )}
-      <SubmitButton className="btn-primary w-full" pendingText="Recording…">Record payment</SubmitButton>
+      <SubmitButton className="btn-primary w-full" pendingText={earlier ? "Sending…" : "Recording…"}>
+        {earlier ? "Send to confirm" : "Record payment"}
+      </SubmitButton>
     </ActionForm>
   );
 }

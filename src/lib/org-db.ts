@@ -21,6 +21,7 @@ type OrgTable =
   | "meal_days"
   | "meal_joins"
   | "settlements"
+  | "settlement_claims"
   | "sms_logs"
   | "receipt_scans"
   | "org_closings"

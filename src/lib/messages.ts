@@ -20,3 +20,8 @@ export function paidText(v: { to: string; from: string; group: string; amount: n
     ? `Hi ${first(v.to)}, I sent you ${rs(v.amount)} for ${v.group} and recorded it on Kotasa. Have a look when you can. Thanks!`
     : `Hi ${first(v.to)}, I sent you ${rs(v.amount)} for ${v.group}. Can you mark it as received on Kotasa? Thanks! - ${first(v.from)}`;
 }
+
+/** After recording a payment made earlier: ask the person who got it to confirm it on Kotasa. */
+export function confirmText(v: { to: string; group: string; amount: number; day: string; link: string }) {
+  return `Hi ${first(v.to)}, I recorded the ${rs(v.amount)} I paid you on ${v.day} for ${v.group} on Kotasa. Can you confirm you got it? It's on your Home: ${v.link}`;
+}
