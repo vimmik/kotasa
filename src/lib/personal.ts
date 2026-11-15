@@ -3,10 +3,10 @@ import { cache } from "react";
 import { getMemberships, requireProfile } from "@/lib/auth";
 import { meDb } from "@/lib/me-db";
 import { createAdminClient } from "@/lib/supabase/server";
-import { closedPeriods, daysBetween, periodRange, suggestBudget, type Period, type Range } from "@/lib/periods";
+import { closedPeriods, daysBetween, endOfMonth, periodRange, suggestBudget, type Period, type Range } from "@/lib/periods";
 
 export { suggestBudget };
-import { nowColombo } from "@/lib/time";
+import { addDays, nowColombo } from "@/lib/time";
 import { round2, type Profile } from "@/lib/types";
 import type { History } from "@/lib/quick-add";
 
@@ -70,6 +70,22 @@ export async function getSpend(profileId: string, from: string, to: string): Pro
   const { data, error } = await meDb(profileId).spend(from, to);
   if (error) throw new Error(error.message);
   return ((data ?? []) as SpendRow[]).map((r) => ({ ...r, amount: Number(r.amount) }));
+}
+
+/**
+ * The same as getSpend for a long stretch (Insights: up to a year), read one calendar month at a
+ * time. An RPC answers with at most 1000 rows, and a year of daily entries passes that; the rows
+ * that fell off would be the oldest months, quietly.
+ */
+export async function getSpendByMonth(profileId: string, from: string, to: string): Promise<SpendRow[]> {
+  const chunks: Range[] = [];
+  for (let start = from; start <= to && chunks.length < 60; ) {
+    const end = [endOfMonth(start), to].sort()[0];
+    chunks.push({ start, end });
+    start = addDays(end, 1);
+  }
+  const parts = await Promise.all(chunks.map((c) => getSpend(profileId, c.start, c.end)));
+  return parts.reverse().flat(); // newest first, like getSpend
 }
 
 export async function getBudgets(profileId: string, opts: { includeArchived?: boolean } = {}): Promise<PBudget[]> {

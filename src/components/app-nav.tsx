@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
+  ChartLineUp,
   ChartPieSlice,
   ForkKnife,
   House,
@@ -37,6 +38,9 @@ const ME_ITEMS: Item[] = [
   { href: "/me/budgets", label: "Budgets", Icon: ChartPieSlice },
   { href: "/groups", label: "Groups", Icon: UsersThree },
 ];
+
+/** Desktop has room for Insights too; on a phone it opens from Today and Spending. */
+const ME_TOP: Item[] = [...ME_ITEMS.slice(0, 3), { href: "/me/insights", label: "Insights", Icon: ChartLineUp }, ...ME_ITEMS.slice(3)];
 
 function isActive(path: string, href: string, base: string) {
   return href === base ? path === base : path === href || path.startsWith(href + "/");
@@ -123,7 +127,7 @@ export function BottomNav({ config }: { config: NavConfig }) {
 }
 
 export function MeTopNav() {
-  return <TopLinks list={ME_ITEMS} base="/me" />;
+  return <TopLinks list={ME_TOP} base="/me" />;
 }
 
 export function MeBottomNav() {

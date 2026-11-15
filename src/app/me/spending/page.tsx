@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CaretLeft, CaretRight, CheckCircle, Plus, X } from "@phosphor-icons/react/ssr";
+import { CaretLeft, CaretRight, ChartLineUp, CheckCircle, Plus, X } from "@phosphor-icons/react/ssr";
 import { money } from "@/lib/currency";
 import { endOfMonth, startOfMonth } from "@/lib/periods";
 import { getMe, getSpend } from "@/lib/personal";
@@ -54,9 +54,14 @@ export default async function Spending(props: PageProps<"/me/spending">) {
         title="Spending"
         sub="Your own entries and your share of everything in your groups"
         action={
-          <Link href="/me/add" className="btn-primary">
-            <Plus size={16} aria-hidden="true" /> Add
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/me/insights${m === today.slice(0, 7) ? "" : `?m=${m}`}`} className="btn-ghost px-3" aria-label="Insights: patterns and tips">
+              <ChartLineUp size={16} aria-hidden="true" /> <span className="hidden sm:inline">Insights</span>
+            </Link>
+            <Link href="/me/add" className="btn-primary">
+              <Plus size={16} aria-hidden="true" /> Add
+            </Link>
+          </div>
         }
       />
 

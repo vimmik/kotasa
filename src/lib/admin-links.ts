@@ -8,6 +8,8 @@ export function adminLinks(ctx: OrgContext): AdminLink[] {
   const has = (p: Parameters<OrgContext["perms"]["has"]>[0]) => ctx.perms.has(p);
   const meals = ctx.settings.meals_enabled;
   return [
+    // Same rule as canSeeOverview (lib/overview.ts): people who already see everyone's balance.
+    (has("sms.send") || has("books.close") || has("settle.record_any")) && { href: `${b}/overview`, label: "Overview" },
     meals && has("meals.manage_menu") && { href: `${b}/packing`, label: "Packing list" },
     meals && has("meals.manage_menu") && { href: `${b}/menu`, label: "Menu" },
     meals && has("meals.order_for_others") && { href: `${b}/orders`, label: "Orders" },
