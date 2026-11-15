@@ -118,6 +118,9 @@ src/app/welcome/             onboarding after a brand-new Google account (auth c
 src/app/me/                  Me: private personal budgets (docs/personal-budget-plan.md). Today (safe to spend,
                              quick add), add, spending (+[id] edit), budgets (+new, [id]), settings (currency,
                              income, payday, categories, per-group feed + category mapping)
+  insights/                  one month against your own usual (?m=YYYY-MM, ?src=own|groups, ?span=12): tips, month
+                             by month, by category vs usual, by weekday, most often, biggest. Desktop nav has it;
+                             on a phone it opens from Today and Spending. View = components/me-insights-view.tsx
 src/app/groups/              your groups, pending joins, create a group, "Across all your groups" (per-person net
                              over every shared group, lib/across.ts; same person = profile, else guest mobile/email)
 src/app/join/[code]/         accept an invite link
@@ -129,9 +132,10 @@ src/app/g/[slug]/            one group (layout: requireMember(slug), group switc
   meals/                     weekly meal picker (module)
   budgets/ [id]/             budgets with limit + progress (module)
   settle/                    record a payment (?to=ID / ?from=ID &amount=)
-  insights/                  one month of group spending (?month=YYYY-MM): totals vs last month, by category
-                             (your share / everyone else), who paid, biggest. Expenses + meal orders; not balances,
-                             payments or SMS fees. View = components/insights-view.tsx
+  insights/                  one month of group spending (?month=YYYY-MM): totals vs the usual, tips ("Worth
+                             knowing"), six months of trend, by category (your share / everyone else), by weekday,
+                             who paid, biggest. Expenses + meal orders; not balances, payments or SMS fees.
+                             View = components/insights-view.tsx
   with/[id]/                 "why do I owe X this much?" (Home › why?): amount to settle (getPairs), what is directly
                              between the two (getDirectBalance = pair_balances), the difference explained (fewest
                              payments / closed books), every line between them (getLedgerBetween)
@@ -140,8 +144,11 @@ src/app/g/[slug]/            one group (layout: requireMember(slug), group switc
   account/                   profile, theme, PIN, bill link, history (+ CSV), leave group
   guide/                     "How Kotasa works": idea, benefits, balance example, per-feature steps (only enabled
                              modules), admin note, FAQ. Linked from Home and Account. Keep it in sync with features.
-  admin/                     packing, menu, orders, people (invites, approvals, roles), sms, settings;
+  admin/                     overview, packing, menu, orders, people (invites, approvals, roles), sms, settings;
                              tabs shown per permission (lib/admin-links.ts); /admin -> first allowed tab
+                             overview = the group's dashboard (lib/overview.ts): still to settle, who owes / is
+                             owed + last payment, "Needs attention", who pays whom, spending trend. Open to
+                             sms.send, books.close or settle.record_any (people who already see every balance)
 src/app/b/[token]/           PUBLIC read-only bill for one member (from SMS), noindex
 src/app/auth/callback/       Google: linked login -> done; else profile by verified email + claim invited members.
                              A signed `kotasa_link` cookie (Me › Settings "Connect Google") links it to that profile
@@ -171,6 +178,12 @@ src/lib/
   ledger.ts                  listMembers, getPairs(orgId) (rpc pair_balances), summarize, getLedgerFor
   logins.ts                  PIN login create/update per profile; profileOwnedByOrg (who may reset a PIN)
   sms.ts                     buildWeeklyMessages, sendWeeklySms (per group, monthly cap), Text.lk / Notify.lk senders
+  insights.ts                pure rules behind every Insights screen (no DB, no AI): analyse(entries, month) and
+                             meTips / groupTips / adminTips. A running month is compared like for like ("by day 15
+                             you usually spend…"); "the usual" = average of up to 3 months before. Tips: warnings,
+                             then good news, then the rest; pages show 4 (Overview 6)
+  group-spend.ts             monthsSpend(org, months): expenses + meal orders per month, paged; spendEntries()
+  overview.ts                canSeeOverview(ctx), getOverview(ctx) for Admin › Overview
   split.ts                   splitEqually (cent-exact), splitByItems (by item; extras pro rata, cent-exact), billTotals
   receipt.ts                 scanReceipt: bill photo -> items/charges/discounts via Claude (structured output).
                              Off unless ANTHROPIC_API_KEY is set; receipt_scans caps 40/group, 15/person a day
@@ -184,6 +197,9 @@ src/lib/
   brand.ts                   BRAND name/tagline/colors, appUrl()
   types.ts                   shared types, rs() money formatter, round2
 src/components/              UI (client components end in forms/pickers; bits.tsx = shared server bits)
+                             insight-bits.tsx = TipList, Delta ("12% more than usual"), Columns (thin column
+                             chart, pure CSS), Segmented. `p { text-wrap: pretty }` in globals.css is unlayered and
+                             switches wrapping back on, so `truncate` on a <p> does nothing: use a div or span
                              org-field.tsx = hidden "org" input every group form needs
 supabase/migrations/         init + multi_tenant (orgs, profiles/members, roles, circles, invites, composite FKs)
 scripts/make-icons.mjs       regenerates logo/app icon set (uses sharp)

@@ -262,7 +262,7 @@ export default async function Home(props: PageProps<"/g/[slug]">) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">Insights</p>
-          <p className="truncate text-sm text-muted">Where the money went this month, and your share of it</p>
+          <p className="truncate text-sm text-muted">Where the money went, how it&apos;s changing, and tips</p>
         </div>
         <ArrowRight size={18} className="text-muted" aria-hidden="true" />
       </Link>

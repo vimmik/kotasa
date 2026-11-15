@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, ChartPieSlice, Info, Sparkle } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ChartLineUp, ChartPieSlice, Info, Sparkle } from "@phosphor-icons/react/ssr";
 import { money } from "@/lib/currency";
 import { rangeLabel, startOfMonth } from "@/lib/periods";
 import { budgetStatus, getBudgets, getHabits, getMe, getSpend, spendWindow, starterChips, suggestBudget } from "@/lib/personal";
@@ -138,6 +138,17 @@ export default async function MeToday() {
           they aren&apos;t in your totals. They&apos;re listed under Spending.
         </p>
       )}
+
+      <Link href="/me/insights" className="card-link flex items-center gap-3">
+        <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
+          <ChartLineUp size={18} weight="duotone" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Insights</p>
+          <p className="truncate text-sm text-muted">This month against your usual, patterns and tips</p>
+        </div>
+        <ArrowRight size={18} className="text-muted" aria-hidden="true" />
+      </Link>
 
       <Link href="/me/settings" className="card-link flex items-center gap-3">
         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">

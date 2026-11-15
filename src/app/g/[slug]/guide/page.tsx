@@ -103,12 +103,13 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
     {
       icon: ChartBar,
       title: "Insights",
-      body: "See where the group's money went each month, and how much of it was yours.",
+      body: "See where the group's money went each month, how it's changing, and how much of it was yours.",
       steps: [
         "Open Insights from Home or the Expenses page.",
-        "The top row shows what the group spent, your share, and what you paid up front, compared with last month.",
+        "The top row shows what the group spent, your share, and what you paid up front, against the usual for this point of a month.",
+        "Worth knowing lists what stands out: a category that jumped, one big expense, who is carrying the group.",
+        "Month by month shows the last six months. Tap a month to look at it.",
         "By category shows where it went. Who paid shows who put money in.",
-        "Use the arrows to look at earlier months.",
       ],
       href: `${base}/insights`,
       cta: "Open Insights",
@@ -248,7 +249,8 @@ export default async function GuidePage(props: PageProps<"/g/[slug]/guide">) {
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-semibold">The Admin area</p>
               <p className="text-muted">
-                Add people and invite links, approve joins and set roles. Set the daily menu and meal cutoffs, see the
+                Overview shows where the group stands: what is still to settle, who owes and who is owed, what
+                needs attention, and spending month by month. Add people and invite links, approve joins and set roles. Set the daily menu and meal cutoffs, see the
                 packing list, fix anyone&apos;s order, preview and send the SMS, close the books so settled weeks
                 stop changing, and turn modules on or off in Settings. You only see the tabs your role allows.
               </p>
