@@ -159,6 +159,9 @@ src/app/start/route.ts       where a login lands (landingPath, lib/auth.ts): /me
                              last (or first) group's Home, else /me. Login actions resolve "/start" themselves (land()
                              in actions/auth.ts) because a server-action redirect renders a page, not a route handler
 src/app/login, setup         setup = first-run only (first account + first group)
+src/app/api/mcp/             MCP server for Claude (read-only tools, lib/mcp/tools.ts). Tokens come from Supabase Auth's
+                             OAuth 2.1 server; /oauth/consent is its consent page; /.well-known/oauth-protected-resource
+                             points clients there. Everyone for now, later plans only (mcpAllowed). docs/mcp-connector.md
 src/app/api/cron/weekly-sms  hourly pg_cron at :00 Colombo (Bearer CRON_SECRET), loops groups with SMS on; ?force=1 ignores day/hour
 src/app/actions/             ALL writes: auth.ts, expenses.ts, money.ts (settle, budgets), meals.ts, admin.ts,
                              personal.ts (Me; profile comes from the session only)

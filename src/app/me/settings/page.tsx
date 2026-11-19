@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { CheckCircle, DeviceMobile, GoogleLogo, LockSimple, SignOut } from "@phosphor-icons/react/ssr";
+import { CheckCircle, DeviceMobile, GoogleLogo, LockSimple, Plugs, SignOut } from "@phosphor-icons/react/ssr";
 import { logout } from "@/app/actions/auth";
+import { revokeAppAccess } from "@/app/actions/oauth";
+import { appUrl } from "@/lib/brand";
+import { connectedApps, type ConnectedApp } from "@/lib/mcp/grants";
 import { loginMethods } from "@/lib/logins";
 import { displayPhone } from "@/lib/phone";
 import { getGroupFeeds, getMe } from "@/lib/personal";
 import type { Profile } from "@/lib/types";
-import { PayDetailsForm, PinForm } from "@/components/account-forms";
+import { CopyLink, PayDetailsForm, PinForm } from "@/components/account-forms";
 import { PageHeader } from "@/components/bits";
 import { ConnectPhoneForm } from "@/components/sign-in-forms";
 import { ConnectGoogle } from "@/components/google-button";
@@ -21,7 +24,12 @@ const NOTICES: Record<string, string> = {
 
 export default async function MeSettings({ searchParams }: PageProps<"/me/settings">) {
   const { profile, currency, categories } = await getMe();
-  const [feeds, methods, sp] = await Promise.all([getGroupFeeds(profile.id, categories), loginMethods(profile.id), searchParams]);
+  const [feeds, methods, apps, sp] = await Promise.all([
+    getGroupFeeds(profile.id, categories),
+    loginMethods(profile.id),
+    connectedApps(),
+    searchParams,
+  ]);
   const notice = Object.entries(sp).map(([k, v]) => NOTICES[`${k}=${v}`]).find(Boolean);
   return (
     <div className="stagger mx-auto max-w-xl space-y-6">
@@ -72,6 +80,8 @@ export default async function MeSettings({ searchParams }: PageProps<"/me/settin
       </section>
 
       <CategoryList categories={categories} />
+
+      <ClaudeCard apps={apps} />
 
       <section className="card flex items-center justify-between gap-3">
         <h2 className="font-semibold">Theme</h2>
@@ -147,6 +157,50 @@ function SignInCard({ profile, methods }: { profile: Profile; methods: Set<strin
           </>
         )}
       </div>
+    </section>
+  );
+}
+
+/** Kotasa as a Claude connector (MCP, read-only): the link to add, and the apps already allowed. */
+function ClaudeCard({ apps }: { apps: ConnectedApp[] }) {
+  return (
+    <section className="card space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
+          <Plugs size={18} weight="bold" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">Use Kotasa in Claude</h2>
+          <p className="text-sm text-muted">
+            Ask Claude &ldquo;who do I owe?&rdquo; or &ldquo;what did I spend on food this month?&rdquo;. It can only read:
+            it can&apos;t add, change or pay anything.
+          </p>
+        </div>
+      </div>
+      <ol className="list-decimal space-y-1 pl-5 text-sm">
+        <li>In Claude, open Settings › Connectors › Add custom connector.</li>
+        <li>Paste this link and add it.</li>
+        <li>Press Connect, log in to Kotasa and allow it.</li>
+      </ol>
+      <CopyLink url={`${appUrl()}/api/mcp`} label="Kotasa connector link" />
+      {apps.length > 0 && (
+        <ul className="divide-y divide-line border-t border-line">
+          {apps.map((a) => (
+            <li key={a.clientId} className="flex items-center gap-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{a.name}</div>
+                <div className="text-xs text-muted">Allowed {a.since.slice(0, 10)}</div>
+              </div>
+              <form action={revokeAppAccess}>
+                <input type="hidden" name="client_id" value={a.clientId} />
+                <button className="btn-ghost text-danger" aria-label={`Turn off access for ${a.name}`}>
+                  Turn off
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
