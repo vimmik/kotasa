@@ -4,7 +4,7 @@ import { createKotasaServer } from "@/lib/mcp/tools";
 
 /**
  * Kotasa's MCP server (Streamable HTTP, stateless): add `<app>/api/mcp` as a custom connector in
- * Claude. Every request carries an OAuth access token from Supabase Auth (see lib/mcp/auth.ts and
+ * Claude, ChatGPT or Gemini (Me › Settings has a button for each). Every request carries an OAuth access token from Supabase Auth (see lib/mcp/auth.ts and
  * /oauth/consent); without one the answer is 401 pointing at the protected-resource metadata, which
  * is how the client finds where to log in. Tools are read-only (lib/mcp/tools.ts).
  */
@@ -33,7 +33,7 @@ async function handle(request: Request) {
   const caller = await verifyBearer(request);
   if (!caller) {
     const metadata = resourceMetadataUrl(originOf(request));
-    return jsonError(401, "Log in to Kotasa to use it from Claude.", {
+    return jsonError(401, "Log in to Kotasa to connect it.", {
       "WWW-Authenticate": `Bearer resource_metadata="${metadata}"`,
     });
   }

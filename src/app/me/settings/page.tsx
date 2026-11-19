@@ -9,6 +9,7 @@ import { displayPhone } from "@/lib/phone";
 import { getGroupFeeds, getMe } from "@/lib/personal";
 import type { Profile } from "@/lib/types";
 import { CopyLink, PayDetailsForm, PinForm } from "@/components/account-forms";
+import { AiConnectButtons } from "@/components/ai-connect";
 import { PageHeader } from "@/components/bits";
 import { ConnectPhoneForm } from "@/components/sign-in-forms";
 import { ConnectGoogle } from "@/components/google-button";
@@ -81,7 +82,7 @@ export default async function MeSettings({ searchParams }: PageProps<"/me/settin
 
       <CategoryList categories={categories} />
 
-      <ClaudeCard apps={apps} />
+      <AiAppsCard apps={apps} />
 
       <section className="card flex items-center justify-between gap-3">
         <h2 className="font-semibold">Theme</h2>
@@ -161,8 +162,9 @@ function SignInCard({ profile, methods }: { profile: Profile; methods: Set<strin
   );
 }
 
-/** Kotasa as a Claude connector (MCP, read-only): the link to add, and the apps already allowed. */
-function ClaudeCard({ apps }: { apps: ConnectedApp[] }) {
+/** Kotasa as a connector for AI apps (MCP, read-only): buttons per app, the link, and apps already allowed. */
+function AiAppsCard({ apps }: { apps: ConnectedApp[] }) {
+  const url = `${appUrl()}/api/mcp`;
   return (
     <section className="card space-y-3">
       <div className="flex items-start gap-3">
@@ -170,19 +172,18 @@ function ClaudeCard({ apps }: { apps: ConnectedApp[] }) {
           <Plugs size={18} weight="bold" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">Use Kotasa in Claude</h2>
+          <h2 className="font-semibold">Use Kotasa in your AI app</h2>
           <p className="text-sm text-muted">
-            Ask Claude &ldquo;who do I owe?&rdquo; or &ldquo;what did I spend on food this month?&rdquo;. It can only read:
-            it can&apos;t add, change or pay anything.
+            Ask Claude, ChatGPT or Gemini &ldquo;who do I owe?&rdquo; or &ldquo;what did I spend on food this month?&rdquo;.
+            It can only read: it can&apos;t add, change or pay anything.
           </p>
         </div>
       </div>
-      <ol className="list-decimal space-y-1 pl-5 text-sm">
-        <li>In Claude, open Settings › Connectors › Add custom connector.</li>
-        <li>Paste this link and add it.</li>
-        <li>Press Connect, log in to Kotasa and allow it.</li>
-      </ol>
-      <CopyLink url={`${appUrl()}/api/mcp`} label="Kotasa connector link" />
+      <AiConnectButtons url={url} />
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted">Another app? Add this link as a custom connector (MCP server).</p>
+        <CopyLink url={url} label="Kotasa connector link" />
+      </div>
       {apps.length > 0 && (
         <ul className="divide-y divide-line border-t border-line">
           {apps.map((a) => (
