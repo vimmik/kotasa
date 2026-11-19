@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC = ["/login", "/signup", "/setup", "/auth", "/b/", "/privacy", "/terms"];
+const PUBLIC = ["/login", "/signup", "/setup", "/auth", "/b/", "/privacy", "/terms", "/.well-known/"];
 // Logged-out visitors to these are sent to /login?next=<path> and come back after signing in.
-const RETURN_TO = ["/join/", "/g/"];
+const RETURN_TO = ["/join/", "/g/", "/oauth/"];
+// These also keep their query string in ?next= (the OAuth consent page needs its authorization_id).
+const KEEP_QUERY = ["/oauth/"];
 
 // Refreshes the Supabase session cookie and sends logged-out users to /login.
 // "/" is the landing page for logged-out visitors and opens Me for everyone else.
@@ -43,7 +45,8 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    if (RETURN_TO.some((p) => path.startsWith(p))) url.searchParams.set("next", path);
+    if (RETURN_TO.some((p) => path.startsWith(p)))
+      url.searchParams.set("next", KEEP_QUERY.some((p) => path.startsWith(p)) ? path + request.nextUrl.search : path);
     return NextResponse.redirect(url);
   }
   return response;

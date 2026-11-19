@@ -18,16 +18,21 @@ export async function getAuthUserId(): Promise<string | null> {
   return (data?.claims?.sub as string | undefined) ?? null;
 }
 
-/** The profile behind the current login, or null. */
-export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
-  const uid = await getAuthUserId();
-  if (!uid) return null;
+/** The profile behind one Supabase auth user, or null. */
+export async function profileForAuthUser(uid: string): Promise<Profile | null> {
   const { data } = await createAdminClient()
     .from("profile_logins")
     .select("profiles(*)")
     .eq("auth_user_id", uid)
     .maybeSingle();
   return (data as { profiles: Profile | null } | null)?.profiles ?? null;
+}
+
+/** The profile behind the current login, or null. */
+export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
+  const uid = await getAuthUserId();
+  if (!uid) return null;
+  return profileForAuthUser(uid);
 });
 
 export async function requireProfile(): Promise<Profile> {
@@ -48,9 +53,17 @@ export type OrgContext = {
 
 /** The current profile's membership in the group with this slug (any status), or null. */
 export const getOrgContext = cache(async (slug: string): Promise<OrgContext | null> => {
-  if (!SLUG_RE.test(slug)) return null;
   const profile = await getCurrentProfile();
-  if (!profile) return null;
+  return profile ? orgContextFor(profile, slug) : null;
+});
+
+/**
+ * One profile's membership in the group with this slug (any status), or null. getOrgContext is
+ * this for the logged-in person; the MCP server (lib/mcp) calls it with the profile behind an
+ * access token. Callers still check status and permissions.
+ */
+export async function orgContextFor(profile: Profile, slug: string): Promise<OrgContext | null> {
+  if (!SLUG_RE.test(slug)) return null;
   // Memberships come with their group in one query, and the group layout reuses the same cached result.
   const found = (await getMemberships(profile.id)).find((m) => m.org.slug === slug);
   if (!found) return null;
@@ -70,7 +83,7 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext | nu
     perms,
     base: `/g/${org.slug}`,
   };
-});
+}
 
 /**
  * Gate for everything under /g/[slug]. Not a member (or no such group) is a 404, so group
