@@ -17,7 +17,13 @@ Kavi, 2026-11-19: **read-only first**, **no payments**, **everyone can use it fo
      **`/oauth/consent`** (log in first if needed; the proxy keeps the `authorization_id` in `?next=`).
   4. Allow → `approveAuthorization` → back to Claude with a code → Claude gets a Supabase JWT for that person.
   5. `/api/mcp` checks it with `getClaims()` and maps `sub` → `profile_logins` → profile.
-- Me › Settings › "Use Kotasa in Claude": the link to paste, and connected apps with "Turn off" (`revokeGrant`).
+- Me › Settings › "Use Kotasa in your AI app" (Kavi, 2026-11-19): Claude / ChatGPT / Gemini buttons
+  (components/ai-connect.tsx). None of them has an official "add this connector" link yet, so a button copies the
+  link and opens that app's connector settings (Claude: an undocumented prefill link
+  `claude.ai/customize/connectors?modal=add-custom-connector&connectorName=…&connectorUrl=…`, which falls back to the
+  Connectors page). Below: the link itself, and connected apps with "Turn off" (`revokeGrant`).
+- ChatGPT needs Developer mode (paid plans) for a custom connector; Gemini's custom apps are not in every country.
+  Real one-click = getting listed in Claude's and ChatGPT's directories (Kavi: later).
 - The token is a normal Supabase user JWT. Against Supabase's own APIs it can read nothing: RLS is on with no policies.
 
 ## Setup (each Supabase project: dev, QA, prod)
@@ -25,7 +31,7 @@ Kavi, 2026-11-19: **read-only first**, **no payments**, **everyone can use it fo
 2. Authorization path: `/oauth/consent`. Site URL must be the app's URL (Authentication → URL Configuration).
 3. Allow **dynamic client registration** (Claude registers itself).
 4. Recommended: asymmetric JWT signing keys (JWT Keys), so `getClaims()` verifies locally via JWKS.
-5. In Claude: Settings → Connectors → Add custom connector → `https://<app>/api/mcp` → Connect → Allow.
+5. Me › Settings › "Use Kotasa in your AI app" → Claude / ChatGPT / Gemini → paste → Connect → Allow.
 
 ## Not done yet (ask Kavi first)
 - Writes (add an expense, Me quick add). Payments stay out.

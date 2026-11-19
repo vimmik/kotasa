@@ -21,12 +21,12 @@ const CANNOT = ["Add, change or delete anything", "Record or make payments", "Se
 
 /**
  * Supabase Auth's OAuth 2.1 server sends people here (Authentication › OAuth Server › authorization
- * path) when Claude or another MCP client asks to read their Kotasa. The proxy sends logged-out
+ * path) when Claude, ChatGPT, Gemini or another MCP client asks to read their Kotasa. The proxy sends logged-out
  * people to /login first and back here with the authorization_id.
  */
 export default function ConsentPage(props: PageProps<"/oauth/consent">) {
   return (
-    <AuthShell title="Use Kotasa in Claude" sub="An app wants to read your Kotasa.">
+    <AuthShell title="Connect an AI app" sub="An app wants to read your Kotasa.">
       <Suspense fallback={<Loading />}>
         <Consent searchParams={props.searchParams} />
       </Suspense>
@@ -38,14 +38,14 @@ async function Consent({ searchParams }: { searchParams: PageProps<"/oauth/conse
   const sp = await searchParams;
   const id = typeof sp.authorization_id === "string" ? sp.authorization_id : "";
   const failed = sp.error === "failed";
-  if (!id) return <Problem text="This link is missing its request. Go back to Claude and connect Kotasa again." />;
+  if (!id) return <Problem text="This link is missing its request. Go back to the app and connect Kotasa again." />;
 
   const profile = await getCurrentProfile();
   if (!profile) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${id}`)}`);
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(id);
-  if (error || !data) return <Problem text="This request has expired or was already answered. Go back to Claude and connect Kotasa again." />;
+  if (error || !data) return <Problem text="This request has expired or was already answered. Go back to the app and connect Kotasa again." />;
   // Allowed before for the same access: Supabase answers with where to go straight away.
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   const req = data as OAuthAuthorizationDetails;
@@ -92,7 +92,7 @@ async function Consent({ searchParams }: { searchParams: PageProps<"/oauth/conse
 
       {failed && (
         <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
-          That didn&apos;t go through. Try again, or go back to Claude and connect Kotasa again.
+          That didn&apos;t go through. Try again, or go back to the app and connect Kotasa again.
         </p>
       )}
       {!allowed.ok && (
